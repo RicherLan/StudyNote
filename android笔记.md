@@ -1,1 +1,579 @@
+# 杂知识
+* 一些项目技术:https://mp.weixin.qq.com/s/_Ox67FpVi1P032EWyRlZXA
+* 代码整洁之道书：https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
+* ios memory deep dive
+
+
+# 设计架构：
+* clean architecture:https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
+* 小明的mvvm：https://docs.corp.kuaishou.com/k/home/VM1xCx-qw9pA/fcAAOkWDwpwUcfS95pLdkZDq8
+
+# android技术知识：
+* view点击事件分发：https://www.jianshu.com/p/38015afcdb58
+* window：https://juejin.cn/post/6888688477714841608
+* dpi: https://www.jianshu.com/p/d8e6bb5deea5
+* Context：https://mp.weixin.qq.com/s/AtaHv3tKjJniSRhavLx-jA
+* 一张图片的大小:https://www.cnblogs.com/dasusu/p/9789389.html
+* 高效加载大位图:https://developer.android.google.cn/topic/performance/graphics/load-bitmap?hl=zh-tw
+* FlexboxLayout:https://juejin.cn/post/6844903697500241928#heading-19
+* drawable:https://blog.csdn.net/guolin_blog/article/details/50727753
+*  .9图：https://www.cnblogs.com/Free-Thinker/p/13182801.html
+
+
+# Java技术知识点：
+* happens-before:https://segmentfault.com/a/1190000011458941
+* HashMap：https://tech.meituan.com/2016/06/24/java-hashmap.html
+* synchronized: https://xiaomi-info.github.io/2020/03/24/synchronized/
+* AQS(不完整):https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
+* 关闭线程池:http://www.justdojava.com/2019/09/10/threadpool-shutdown/
+
+# kotlin
+
+
+# 大前端
+* js教学：https://zh.javascript.info/js?map
+
+# server
+* kafka:https://www.orchome.com/5
+
+# 一些三方库
+* Fresco：https://www.rousetime.com/2017/12/28/Fresco%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90%E4%B9%8BProducer/
+* Retrofit2: https://juejin.cn/post/6844903570605621255#heading-16
+* Rxjava解析：https://docs.corp.kuaishou.com/d/home/fcACwhaVHTNZ_AbfStxFignJN
+* dagger2:https://www.jianshu.com/p/6a65b9d33fea
+
+
+# 操作系统
+* 计算机编码（unicode ASCII）：https://www.cnblogs.com/gavin-num1/p/5170247.html
+* Cache:https://zhuanlan.zhihu.com/p/102293437
+
+
+# 算法
+* LRU：https://leetcode.com/problems/lru-cache/description/
+* LFU：https://leetcode.com/problems/lfu-cache/description/
+
+
+# 一些好用的工具
+*tmux：http://louiszhai.github.io/2017/09/30/tmux/
+
+TODO： 
+* mmkv
+
+
+
+
+java线程：
+suspend和stop弃用原因：
+1.suspend()，在调用该方法暂停线程的时候，线程由running状态变成blocked，需要等待resume方法将其重新变成runnable。
+而线程由running状态变成blocked时，只释放了CPU资源，没有释放锁资源，可能出现死锁。
+比如：线程A拿着锁1被suspend了进入了blocked状态，等待线程B调用resume将线程A重新runnable。但是线程B一直在lock pool中等待锁1,线程B要拿到锁1才能running去执行resumeA。这就死锁了。
+
+2.stop()，调用stop方法无论run()中的逻辑是否执行完，都会释放CPU资源，释放锁资源。这会导致线程不安全。
+比如：线程A的逻辑是转账（获得锁，1号账户减少100元，2号账户增加100元，释放锁），那线程A刚执行到1号账户减少100元就被调用了stop方法，释放了锁资源，释放了CPU资源。1号账户平白无故少了100元。一场撕逼大战开始了。
+
+
+Thread.interrupt方法，在线程wait、sleep等时，会抛出interruptedException异常 且 会把中断标记位重新置为false(方案：可以在catch内在调用intercept())
+处于死锁状态时，不会理会中断
+
+
+一写多读的场景适合用volatile
+
+
+aqs
+https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
+https://xie.infoq.cn/article/0223d5e5f19726b36b084b10d
+
+比如线程加入等待队列的时候，需要把tail尾节点设置成当前节点，设置方法：
+class AbstractQueuedSynchronizer {
+    private transient volatile Node tail;
+    static {
+        tailOffset = unsafe.objectFieldOffset (AbstractQueuedSynchronizer.class.getDeclaredField("tail"));
+    }
+    private final boolean compareAndSetTail(Node expect, Node update) {
+        // cas设置对象中某field的时候， 替换该field地址上的数据(新node对象的地址)
+        // 如果tailOffset的Node和Expect的Node地址是相同的，那么设置Tail的值为Update的值
+        return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
+    }
+}
+
+java.util.concurrent中对aqs的应用场景：
+ReentrantLock	        使用AQS保存锁重复持有的次数。当一个线程获取锁时，ReentrantLock记录当前获得锁的线程标识，用于检测是否重复获取，以及错误线程试图解锁操作时异常情况的处理。
+Semaphore	            使用AQS同步状态来保存信号量的当前计数。tryRelease会增加计数，acquireShared会减少计数。
+CountDownLatch    	    使用AQS同步状态来表示计数。计数为0时，所有的Acquire操作（CountDownLatch的await方法）才可以通过。
+ReentrantReadWriteLock	使用AQS同步状态中的16位保存写锁持有的次数，剩下的16位用于保存读锁的持有次数。
+ThreadPoolExecutor    	Worker利用AQS同步状态实现对独占线程变量的设置（tryAcquire和tryRelease）。
+
+
+cpu密集型，线程池的线程数量一般是：cpu核数+1
+加1：即使当计算密集型的线程偶尔由于缺页或者其他原因而暂停时，这个额外的线程也能确保cpu的时钟周期不会被浪费
+
+
+Object的finilize方法不一定执行
+守护线程的finally块不一定执行
+
+finalize方法
+1.对象未覆盖 finalize 方法，不执行
+2.finalize已经被调用过一次，不执行：因此在finalize方法中把this重新被其他对象引用一下就可以防止死亡了，但是后面也不会在被调用finalize方法了
+3.jvm不保证finalize能完整执行
+以上是不一定会被调用，至于确定需要调用的时候会放入f-queue , f-queue 属于低优先级 Finalize 线程，不知道什么时候执行队列，所以不确定什么时候调用。
+
+
+okhttp：https://juejin.cn/post/6844904087788453896
+
+
+android:
+ContentProvider
+ContentProvider 的常规用法是提供内容服务，而另一个特殊的用法是提供无侵入的初始化机制
+ContentProvider.onCreate调用时机介于Application的attachBaseContext和onCreate之间
+Application.attachBaseContext() --> installContentProviders(调用所有provider的onCreat方法) --> Application.onCreat() --> MainActivity
+
+
+lifeCycle
+1. lifeCycleRegistry添加观察者(LifeCycleObserver)的时候，会先同步下观察者的状态
+2. LifeCycleObserver一般有两种，注解事件方法和FullLifecycleObserver，注解是运行时，添加observer的时候会动态解析注解，方法和事件注解一一对应Map<MethodReference, Lifecycle.Event>
+
+
+
+android数据恢复：https://juejin.cn/post/6844904079265644551
+
+在 Android 系统中，需要数据恢复有如下两种场景：
+场景1：资源相关的配置发生改变导致 Activity 被杀死并重新创建。(不考虑在清单文件中配置 android:configChanges 的特殊情况)
+场景2：资源内存不足导致低优先级的 Activity 被杀死。
+解决方案：
+1. 使用 onSaveInstanceState 与 onRestoreInstanceState
+2. 使用 Fragment 的 setRetainInstance
+3. 使用 onRetainNonConfigurationInstance 与 getLastNonConfigurationInstance (ViewModel的恢复就是采用这种方式的)
+
+onSaveInstanceState不是每次都会调用(如用户手动按下返回键来关闭activity)，调用时机：
+如果被调用，对于以 Build.VERSION_CODES.P 开头的平台为目标的应用程序，此方法将在 onStop 之后发生。对于针对早期平台版本的应用程序，此方法将在 onStop 之前发生，并且无法保证它是在 onPause 之前还是之后发生。
+在onCreate和onRestoreInstanceState中都可以拿到onSaveInstanceState不存储的bundle(函数参数的形式)
+onRestoreInstanceState调用时机：
+这个方法在 onStart 和 onPostCreate 之间被调用。只有在重新创建活动时才会调用此方法；如果出于任何其他原因调用 onStart，则不会调用该方法。
+
+
+ViewModel的好文章：https://juejin.cn/post/6844904079265644551
+
+
+RecyclerView
+局部刷新：https://juejin.cn/post/6844903817130016782
+四级缓存：https://www.jianshu.com/p/3e9aa4bdaefd
+Scrap(屏幕内的，可以拿来直接使用，如局部刷新时)：Recycler.mAttachedScrap
+Cache()：Recycler.mCachedViews
+ViewCacheExtension
+RecycledViewPool
+
+缓存使用
+onTouchEvent方()中move事件-->scrollByInternal()-->scrollStep()-->
+layoutManager中的：  LayoutManager.scrollVerticallyBy() ｜ scrollHorizontallyBy()-->scrollBy()-->fill()-->layoutChunk()-->
+LayoutState中的：    layoutState.next(recycler)-->
+Recycler中的：       recycler.getViewForPosition(mCurrentPosition)-->tryGetViewHolderForPositionByDeadline(position)-->先查mChangedScrap中-->开始走4级缓存
+注意从pool中取到ViewHolde后，会调用vh.resetInternal()去清空数据
+如果缓存中拿不到，就走create了
+
+
+Fragment懒加载(主要分析ViewPager场景下)，很不错的文章：https://juejin.cn/post/6844904050698223624
+
+ViewPager2和viewPager
+1. ViewPager2是RecyclerView那一套
+2. ViewPager2默认是懒加载的，ViewPager默认是预加载的(左右各1个)
+
+ViewPager
+为什么ViewPager设置宽度、高度无效？
+在OnMeasure()中，先立刻执行了setMeasuredDimension(getDefaultSize(0, widthMeasureSpec),getDefaultSize(0, heightMeasureSpec)); 并没有测量完所有的孩子后根据孩子的大小设置自己的。
+可见，ViewPager的宽高是由它的容器决定的。
+官方注释这么做的原因：我们依靠容器来指定视图的布局大小。我们无法真正知道它是什么，因为我们将添加和删除不同的任意视图并且不希望布局在这种情况下发生变化。
+
+默认缓存数量为左右个一个: DEFAULT_OFFSCREEN_PAGES = 1
+void setOffscreenPageLimit(int limit) {
+    if (limit < DEFAULT_OFFSCREEN_PAGES) {
+            limit = DEFAULT_OFFSCREEN_PAGES;
+        }
+        if (limit != mOffscreenPageLimit) {
+            mOffscreenPageLimit = limit;
+            populate();
+        }
+}
+
+ArrayList<ItemInfo> mItems; // 缓存的页面
+populate(int newCurrentItem)函数， 还有个void populate() { populate(mCurItem); }函数
+    1. 如果currentItem为空(比如第一次显示的时候)，那么调用IteamInfo addNewItem(int position, int index)函数，内部是mAdapter.instantiateItem(this, position)
+    2. 紧接着判断如果currentItem不为空，然后起两个循环，分别检验curItem的左右两侧的，
+        (1)如果要销毁的，那么执行mItems.remove(itemIndex) 和 mAdapter.destroyItem()
+        (2)如果要缓存，那么调用IteamInfo addNewItem(int position, int index)函数，实例化出来item，函数内部会调用mAdapter.instantiateItem 和 mItems.add(xx)
+
+PagerAdapter mAdapter; PagerAdapter的两个直接子类FragmentStatePagerAdapter和FragmentPagerAdapter
+FragmentPagerAdapter中destroyItem()方法会执行FragmentTransaction.detach(fragment)方法，仅销毁视图，并不会销毁fragment实例
+FragmentStatePagerAdapter中destroyItem()方法会执行FragmentTransaction.remove(fragment)方法，会彻底将fragment从当前Activity的FragmentManager中移除，
+    state表明销毁时，会将其onSaveInstanceState(Bundle outState)中的bundle信息保存下来，当用户切换回来，可以通过该bundle恢复生成新的fragment，也就是说，你可以在onSaveInstanceState(Bundle outState)方法中保存一些数据，在onCreate中进行恢复创建。
+        在destroyItem的时候会保存state(关联position)，instantiateItem方法中会从拿出保存的state去创建fragment
+
+adapter原理：
+准备适配             void startUpdate(ViewGroup container)           如ViewPager在populate方法开始的时候调用
+创建item            Object instantiateItem(ViewGroup container, int position)            如ViewPager在populate中
+                                                     FragmentPagerAdapter实现           实现为先通过mFragmentManager.findFragmentByTag(name)找，name是postion加一些字符拼接的，如果能拿到那么fragmentTraction.attach
+                                                                                        没有的话通过getItem(position)拿，然后fragmentTraction.add
+                                                     FragmentStatePagerAdapter实现     
+                                                                                        先通过 mFragments.get(position)拿，有的话直接return
+                                                                                        没有的话通过getItem(position)拿，然后mFragments.set(position, fragment)，然后fragmentTraction.add。         
+销毁item            void destroyItem(ViewGroup container, int position, Object object)   如ViewPager在populate中，
+                                                      FragmentPagerAdapter的实现        fragmentTraction.detach，
+                                                      FragmentStatePagerAdapter的实现   fragmentTraction.remove，ps：mFragments.set(position, null);
+设置当前的item       void setPrimaryItem(ViewGroup container, int position, Object object) viewPager在得到当前item且创建销毁并缓存好item后，调用
+                                                                                    会让旧的currentFragment.setUserUserVisibleHint(flase)
+                                                                                    让要设置的fragment.setUserUserVisibleHint(true) 和 fragment.setUserUserVisibleHint(flase) 
+完成适配             void finishUpdate(ViewGroup container)      如viewPager在populate方法快结束的时候调用，FragmentPagerAdapter的实现为fragmentTraction.commitNowAllowingStateLoss
+
+
+
+
+view显示的过程
+1. create
+ActivitThread: performLaunchActivity()
+                    --> ContextImpl appContext 创建 
+                    --> activity = mInstrumentation.newActivity() 
+                    --> appContext.setOuterContext(activity);
+                    --> activity.attach(appContext, ..., activityClientRecord.token, ..., r.parent, ...)
+ Activity:              --> mWindow = new PhoneWindow(this, window, activityConfigCallback)
+                        --> mToken = token // 这个token是activity被创建的时候，在ams侧生成的，然后传递到wms侧以及app端，参考 https://www.jianshu.com/p/1422c02da9da
+                        --> mWindow.setWindowManager((WindowManager)context.getSystemService(Context.WINDOW_SERVICE), mToken, ...) // activity的context重写了getSystemService(Context.WINDOW_SERVICE)
+ Window:                    --> mAppToken = appToken
+                            --> mWindowManager = ((WindowManagerImpl)wm).createLocalWindowManager(this);
+                                --> return new WindowManagerImpl(mContext, parentWindow);
+                        --> mWindow.setContainer(mParent.getWindow());
+                        --> mWindowManager = mWindow.getWindowManager();
+                    --> mInstrumentation.callActivityOnCreate
+
+2. resume
+ActivitThread:  handleResumeActivity()
+                     --> performResumeActivity()
+                        --> activity.performResume
+Activity:                --> mInstrumentation.callActivityOnResume
+                            --> dispatchActivityPostResumed(); 这里面就会分发activity的resume事件
+                                --> ((Application.ActivityLifecycleCallbacks) callbacks[i]).onActivityPostResumed(this)
+                                --> getApplication().dispatchActivityPostResumed(this);
+                     --> r.window = r.activity.getWindow();
+                         View decor = r.window.getDecorView();
+                         decor.setVisibility(View.INVISIBLE);
+                         ViewManager wm = a.getWindowManager(); // 这里的返回的实例是WindowManagerImpl
+                         WindowManager.LayoutParams l = r.window.getAttributes(); // 如果不设置的话，LayoutParams的默认宽高都是match_parent
+                         wm.addView(decor, l);
+WindowMangerImpl：          --> WindowManagerGlobal.getInstance().addView(view, params,mContext.getDisplayNoVerify(), mParentWindow,mContext.getUserId()) // 注意这里的parentWindow, activity的话传入的是自己的phoneWindow
+WindowManagerGlobal:           --> 如果parentWindow != null的话，parentWindow.adjustLayoutParamsForSubWindow(params)
+Window：                            --> 在这里根据window的类型(subWindow、systemWindow、其他，注意type默认是TYPE_APPLICATION)做一些处理
+                                        1. 如果是subWindow, 那么wp.token = decor.getWindowToken()
+                                        2. 如果是systemWindow，xxxxx
+                                        3. else，wp.token = mContainer == null ? mAppToken : mContainer.mAppToken; // mAppToken是activity的mToken，mContainer见activity.Attach中mWindow.setContainer(mParent.getWindow());
+                                    --> 其他的一些操作，比如wp.packageName = mContext.getPackageName();，
+                                        在比如设置硬件加速wp.flags |= FLAG_HARDWARE_ACCELERATED;
+                               --> 如果已经添加过这个view了(mViews)，那么抛异常："View " + view + " has already been added to the window manager."
+                               --> ViewRootImpl root = new ViewRootImpl(view.getContext(), display);
+                                    --> 构造函数中 mAttachInfo = new View.AttachInfo(mWindowSession, mWindow, ...)
+                               --> view.setLayoutParams(wparams); // 给根view设置LayoutParams
+                               -->  mViews.add(view); mRoots.add(root); mParams.add(wparams); // 可见WindowManagerGlobal是管理一个进程的所有的view
+                               --> root.setView(view, wparams, panelParentView, userId); // 到这里view的测量渲染等全部交给ViewRootImpl去处理了
+ViewRootImpl:                    void setView(View view, WindowManager.LayoutParams attrs, View panelParentView, int userId) 
+                                    --> requestLayout()
+                                        --> checkThread(); // 检查线程，也就是子线程无法更新ui的原因。
+                                        --> mLayoutRequested = true; // 在measureHierarchy()后，设置为false。然后开始所谓的3大流程
+                                        --> scheduleTraversals(); // invalidate中先mDirty.set(0, 0, mWidth, mHeight);然后调用scheduleTraversals()，注意这里没有给mLayoutRequested设置为true
+                                            点比较多，单独分析
+                                    --> InputChannel inputChannel = new InputChannel();  // 监听事件
+                                        mWindowSession.addToDisplayAsUser(mWindow, ..., inputChannel, ...)  // 把窗口添加到wms上
+                                        mInputEventReceiver = new WindowInputEventReceiver(inputChannel, Looper.myLooper()); WindowInputEventReceiver是ViewRootImpl的内部类
+                                    --> view.assignParent(this); // 设置父亲为VRI: view.mParent = parent（类型是ViewParent，如ViewGroup实现了ViewParent）
+
+ViewRootImpl.scheduleTraversals()：
+
+view measure
+1. MeasureSpec.UNSPECIFIED用在啥场景：
+    MeasureSpec.UNSPECIFIED 表示父 View 对子 View 的大小没有任何限制，子 View 可以任意取大小。在这种情况下，子 View 的宽度和高度可以是任意值（可以是 0，也可以是非常大或非常小），开发者可以根据需要自由地计算自己的大小。
+    MeasureSpec.UNSPECIFIED 主要用于一些特殊的布局，通常是自定义 View 或一些高度自适应的控件中。比如，当我们需要实现一个可以无限滚动的视图，我们就需要在onMeasure()方法中根据MeasureSpec.UNSPECIFIED测量子 View 的大小，然后根据子 View 的大小和数量计算出整个布局的大小。
+    另外，对于一些不会限制子 View 大小的布局，比如 FrameLayout，通常也会将 MeasureSpec 的模式设置为 UNSPECIFIED。这样一来，子 View 可以占据 FrameLayout 的全部空间，从而避免了布局出现“空洞”的情况。
+2. 为什么父亲向孩子传递的measureSpec要在父View中结合子View一起计算在传递给子View呢，而不是直接传递父View的measureSpec，然后子View自己根据自己的LayoutParams计算出自己的measureSpec呢
+    1. 因为父亲的限制是多种多样的，父view有自己的限制规则，这个规则没办法传递给子View的。
+    2. 两个ViewGroup的限制规则不一样，然后A这个子view要添加进这两个viewGroup，子view的measureSpec怎么计算呢？因此只能父亲计算的
+    3. 难道每新定义一个子view的时候，这个计算measureSpec的都要在写一遍吗？
+
+
+view layout
+一些位置相关的函数
+    getLeft()：左边距离父亲左侧的距离
+    getRight(): 右边距离父亲左侧的距离
+    getTop(): 上边距离父亲上侧的距离
+    getBottom(): 下边距离父亲上侧的距离
+    getX() getY() 以父亲左上角为原点
+    getRawX() getRawY() 以屏幕原点(左上角)的坐标
+
+getMeasureWidth() : 在measure()过程结束后就能获取，通过setMeasuredDimension()方法来设置
+getWidth(): 在Layout()过程结束后才能获取，通过视图右边的坐标-左边的坐标得到：mRight-mLeft
+
+
+requestLayout() 和 invalidate区别以及原因：
+
+ViewGroup为什么默认不会执行onDraw()? 
+结论：
+1. decorView的onDraw会执行
+2. ViewGroup的WILL_NOT_DRAW标志位默认就是true的，
+     private void initViewGroup() {
+        .......
+        if (!isShowingLayoutBounds()) {
+            setFlags(WILL_NOT_DRAW, DRAW_MASK);
+        }
+        .........
+    }
+    当WILL_NOT_DRAW标志时，且没有设置背景等，那么会设置PFLAG_SKIP_DRAW标记位，就不会走draw(canvas)，然后就不会走onDraw()
+    void setFlags(int flags, int mask) {
+        ........
+        if ((changed & DRAW_MASK) != 0) {
+            if ((mViewFlags & WILL_NOT_DRAW) != 0) {
+                if (mBackground != null
+                        || mDefaultFocusHighlight != null
+                        || (mForegroundInfo != null && mForegroundInfo.mDrawable != null)) {
+                    mPrivateFlags &= ~PFLAG_SKIP_DRAW;
+                } else {
+                    mPrivateFlags |= PFLAG_SKIP_DRAW;
+                }
+            } else {
+                mPrivateFlags &= ~PFLAG_SKIP_DRAW;
+            }
+            requestLayout();
+            invalidate(true);
+        }
+        .........
+    }
+3. 如果设置了BackgroundDrawable、Foreground等，那么会设置~PFLAG_SKIP_DRAW, 就会走draw(canvas),然后就会走onDraw()
+
+因此，想让viewGroup走绘制draw的话，要调用View.setWillNotDraw(false);
+public void setWillNotDraw(boolean willNotDraw) {
+        setFlags(willNotDraw ? WILL_NOT_DRAW : 0, DRAW_MASK);
+}
+
+View.draw(canvas) (decorView)
+    --> drawBackground(canvas);
+    --> onDraw(canvas)
+    下面的流程是个递归操作
+    --> dispatchDraw(canvas); // draw the children (实现是ViewGroup.dispatchDraw())
+            --> drawChild(canvas, child, drawingTime) // 函数的实现是child.draw(canvas, this, drawingTime);
+                    --> View.draw(Canvas canvas, ViewGroup parent,  long drawingTime) // 注意调用的3参的draw
+                            --> renderNode = updateDisplayListIfDirty();
+                                    // ~PFLAG_SKIP_DRAW这个标记位什么时候被设置呢？
+                                    // 比如view.setBackgroundDrawable()、setForeground()等
+                                    // 另外，WILL_NOT_DRAW标志时，且没有设置背景等，那么会设置PFLAG_SKIP_DRAW标记位
+                                    --> 如果设置了PFLAG_SKIP_DRAW这个标记位的话，那么执行 dispatchDraw(canvas); // draw the children  (实现是ViewGroup.dispatchDraw())
+                                    --> 否则执行 draw(canvas);
+
+
+
+
+事件分发：
+InputManagerService: https://www.jianshu.com/p/f05d6b05ba17
+
+三块代码：
+----------------------------------------------
+第一块代码：是否拦截子view，intercepted为true拦截，为false不拦截
+// Check for interception.
+final boolean intercepted;
+if (actionMasked == MotionEvent.ACTION_DOWN
+        || mFirstTouchTarget != null) {
+
+} else {
+
+}
+
+第二块代码：遍历子view，询问子view是否要处理事件
+if (!canceled && !intercepted) {
+
+}
+
+第三块代码
+1. 如果子view都不处理，询问自己是否要处理事件
+2. 子view处理 ---
+----------------------------------------------
+
+处理的事件： Action_down、Action_move、.......Action_move、Action_up
+down事件谁处理的，move事件也是谁处理
+
+左右滑动的ViewPager中嵌套上下滑动的ListView
+1. ViewPager.onInterceptTouchEvent 为 true   --》 上下滑动不可以，左右可以
+2. ViewPager.onInterceptTouchEvent 为 false  --》 上下滑动可以，左右不可以
+3. ViewPager.onInterceptTouchEvent 为 false，
+    ListView重写dispatchTouchEvent返回false   -->  上下滑动不可以，左右可以
+
+第2点：ViewPager.onInterceptTouchEvent 为 false  --》 上下滑动可以，左右不可以
+答：Action_Down -- 询问子view是否处理事件，只在Down的时候处理 -- target.child = ListView
+   Action_Move -- target.child - ListView
+   dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign) -- 孩子(ListView)处理事件
+
+第3点：ViewPager.onInterceptTouchEvent 为 false，
+    ListView重写dispatchTouchEvent返回false   -->  上下滑动不可以，左右可以
+答：down事件，询问listView处理这个事件吗？
+  ListView重写dispatchTouchEvent返回false，导致if进不去：dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign)
+  viewPager的所有孩子都不处理事件，所以自己处理事件，左右可以滑动：进入if
+    if (mFirstTouchTarget == null) {
+        handled = dispatchTransformedTouchEvent(ev, canceled, null,TouchTarget.ALL_POINTER_IDS);
+    }
+
+处理事件冲突：
+1. 内部拦截法(由子view根据条件来让事件由谁处理) -- 一定想办法让子view拿到事件
+2. 外部拦截法(由父view。。。。)
+
+
+
+
+
+
+View
+自定义view的3个构造方法，xml文件被LayoutInflater解析的时候，如果那几个factory没有创建出view的话，最终会反射调用两参的构造方法，且构造器会缓存到layoutInfater中:HashMap<viewName, constructor>
+
+ViewStub: 继承自View
+通过setVisibility(VIsible) 或者 inflate()方法可以展示子view
+原理：
+1. 在构造方法里面setVisibility(GONE);
+2. 重写了onMeasure方法，方法的实现是setMeasuredDimension(0, 0);
+3. setVisibility()重写了，不会直接设置viewStub本身，而是设置要替换的view的显隐性，如果view还没infalte，那么inflate出来
+    (1) viewStub里面有个field:WeakReference<View> mInflatedViewRef, 弱引用inflate出的view
+4. inflate()方法，
+    (1) 先拿到viewStub的parent，
+    (2) 然后把要替换的布局infalte出来, 如果ViewStub设置了id的话，那么把替换的view的id设置为viewStub的id (注意如果子布局设置了id那么会找不到这个id)
+    (3) viewStub的parent删除viewstub这个子view，然后把替换的view添加进去。
+
+
+include标签：直接在LayoutInflater.parseInclude函数添加替换的layout的
+1. 不能作为根节点
+2. <Include> 标签中设置的宽高等信息，会变成LayoutParams对象设置给inflate出来的view
+3. 如果Include设置了id的话，那么把替换的view的id设置为Include的id
+4. 要替换的layout获取AttributeSet childAttrs，然后递归去inflateChildren
+5. parent去addView(inflate出来的view)
+
+
+
+Surface：
+https://blog.csdn.net/m0_37673128/article/details/113265492
+https://kstack.corp.kuaishou.com/article/654
+
+
+android资源加载：
+Activity的Resources： getResource().getDrawable(drawableId)；
+    ActivityThread: performLaunchActivity() --> ContextImpl appContext = createBaseContextForActivity(ActivityClientRecord r) 注意这时activity还没被new出来
+            --> ContextImpl appContext = ContextImpl.createActivityContext(ActivityThread mainThread, LoadedApk packageInfo, ActivityInfo activityInfo, IBinder activityToken, .....)
+    ContextImpl:--> ContextImpl context = new ContextImpl(....) --> context.setResources(resourcesManager.createBaseTokenResources(...)
+    ResourcesManager: -->createResourcesForActivity() --> ResourcesImpl resourcesImpl = findOrCreateResourcesImplForKeyLocked(...)
+                        -->ResourcesImpl createResourcesImpl(...)-->AssetManager assets = createAssetManager(...) --> apkAssets = ApkAssets.loadFromPath(key.path...) 这个path就是res目录，AssetManager就是通过ApkAssets构建的
+                        --> ResourcesImpl impl = new ResourcesImpl(assets, ...)
+
+Dialog的Resources：没看代码，但是我们知道Dialog构造的时候需要传递Activity的Context
+
+app换肤的思路：参考的这个库的https://github.com/ximsfei/Android-skin-support
+1. 知道xml的view如何解析的
+2. 如何拦截系统的创建流程？LayoutInflater.setFactory2可以拦截--aop的思路去实现(监听activity的create)
+3. 拦截怎么做？重写系统的创建过程代码(copy源码)
+4. 收集view以及属性
+5. 创建皮肤包 apkAssets
+6. 如何使用？只用插件(apk)的res 
+    (1) 系统的资源是如何加载的
+    (2) 通过hook技术，单独创建一个AssetManager专门去加载皮肤包的资源
+    (3) 通过反射addAssetPath方法放入皮肤包的路径 从而得到 加载皮肤包资源的AssetManager
+    (4) 通过app的资源id --》找到app的资源的name和type --》找到皮肤包中对应资源的id
+
+
+app页面置灰：
+描述一个颜色的时候，会有如下几个数据：色相、饱和度、亮度/明度。
+//  色相：色彩的基本属性，就是平常所说的颜色名称，如红色、黄色等。
+//  饱和度：是指色彩的纯度，越高色彩越纯，低则逐渐变灰，取值0-100%。
+//  亮度/明度：色彩的明亮程度，一般情况下颜色加白色亮就越来越高，加黑色则越来越暗，取值0-100%。
+
+Paint()对象的饱和度设置为0即可变成灰色：
+private val garyPaint: Paint by lazy {
+    Paint().apply {
+      val garyColorMatrix = ColorMatrix()
+      // 设置饱和度为0
+      garyColorMatrix.setSaturation(0f)
+      colorFilter = ColorMatrixColorFilter(garyColorMatrix)
+    }
+}
+fun garyActivity(activity: Activity) {
+    garyView(activity.window.decorView)
+}
+fun garyView(view: View) {
+    // LAYER_TYPE_HARDWARE和LAYER_TYPE_SOFTWARE都可以
+    view.setLayerType(View.LAYER_TYPE_HARDWARE, garyPaint)
+}
+
+
+Toast:
+toast必须在主线程吗？ https://juejin.cn/post/6844904103538065422
+如果直接new一个线程，不loop的话，调用Toast.makeText()，该方法里面会取looper，拿不到的话会抛异常Can't toast on a thread that has not called Looper.prepare()
+Toast展示内容，是inflate一个布局(主体就是TextView)，然后拿到INotificationManager服务，入队
+
+
+handler
+内存泄漏：
+1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg
+2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg
+
+Looper：
+static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
+// prepare中创建了Looper对象并添加到sThreadLocal
+public static void prepare() {
+    prepare(true);
+}
+
+private static void prepare(boolean quitAllowed) {
+    if (sThreadLocal.get() != null) {
+        throw new RuntimeException("Only one Looper may be created per thread");
+    }
+    sThreadLocal.set(new Looper(quitAllowed));
+}
+// 构造函数中创建了mq和绑定了当前的线程
+private Looper(boolean quitAllowed) {
+        mQueue = new MessageQueue(quitAllowed);
+        mThread = Thread.currentThread();
+}
+
+MessageQueue：
+多线程间共享: 不同的线程通过handler塞消息
+next()和enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
+
+
+
+Android startup.Initializer :
+
+
+
+leakCanary的内存泄漏分析过程
+1)注册监听Activity生命周期onDestroy事件
+(2)在Activity onDestroy事件回调中创建KeyedWeakReference对象，并关联ReferenceQueue
+(3)延时5秒检查目标对象是否回收
+(4)未回收则开启服务，dump heap获取内存快照hprof文件
+(5)解析hprof文件根据KeyedWeakReference类型过滤找到内存泄漏对象
+(6)计算对象到GC roots的最短路径，并合并所有最短路径为一棵树
+(7)输出分析结果，并根据分析结果展示到可视化页面
+
+
+编码、字符集、讲一下 Unicode 和 UTF-8 的区别：https://zhuanlan.zhihu.com/p/51828216
+
+protocol Buffer原理：https://juejin.cn/post/6844903997292150791
+为什么Protocol Buffer更快，更小，这里再总结一下：
+1. 序列化的时候，不序列化key的name，只序列化key的编号
+2. 序列化的时候，没有赋值的key，不参与序列化，反序列化的时候直接使用默认值填充
+3. 可变长度编码，减小字节占用
+4. TLV编码，去除没有的符号，使数据更加紧凑
+
+
+
+
+
+LeakCanary库的代码看下
+livedata mvvm
+jvm内存、垃圾回收
+类加载
+lru、lfu
+view渲染
+binder
+动画
+okhttp、fresco、retrofit、gson、rxjava、ARouter
+热修复的几种方法
+插件化的几种方法
+viewFlipper、viewPager看一下
+
 
