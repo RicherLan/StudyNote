@@ -78,6 +78,23 @@ Thread.interrupt方法，在线程wait、sleep等时，会抛出interruptedExcep
 
 一写多读的场景适合用volatile
 
+// notifyAll()写在这两个地方没有区别，notifyAll会通知wait的那些线程进就绪，等notifyAll所在的synchronized块执行完了后，wait的那些线程才会去执行
+public void fun() {
+    synchronized(this) {
+        ....
+       // notifyAll()；
+        ....
+        notifyAll()；
+    }
+}
+public void fun2() {
+    synchronized(this) {
+        while(xxx) {
+            wait()
+        }
+        ...
+    }
+}
 
 aqs
 https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
@@ -118,14 +135,200 @@ finalize方法
 以上是不一定会被调用，至于确定需要调用的时候会放入f-queue , f-queue 属于低优先级 Finalize 线程，不知道什么时候执行队列，所以不确定什么时候调用。
 
 
+
+ThreadLocal
+不存数据，类似于一个工具方法，真正存放数据的是Thread.threadLocalMap
+ public T get() {
+    Thread t = Thread.currentThread();
+    // getMap(t)：return t.threadLocals;
+    ThreadLocalMap map = getMap(t);
+    if (map != null) {
+        ThreadLocalMap.Entry e = map.getEntry(this);
+        if (e != null) {
+            @SuppressWarnings("unchecked")
+            T result = (T)e.value;
+            return result;
+        }
+    }
+    return setInitialValue();
+}
+// 每个线程内部都有ThreadLocalMap成员
+static class ThreadLocalMap {
+    /**
+        * The entries in this hash map extend WeakReference, using
+        * its main ref field as the key (which is always a
+        * ThreadLocal object).  Note that null keys (i.e. entry.get()
+        * == null) mean that the key is no longer referenced, so the
+        * entry can be expunged from table.  Such entries are referred to
+        * as "stale entries" in the code that follows.
+        */
+    static class Entry extends WeakReference<ThreadLocal<?>> {
+        /** The value associated with this ThreadLocal. */
+        Object value;
+
+        Entry(ThreadLocal<?> k, Object v) {
+            super(k);
+            value = v;
+        }
+    }
+    
+    private static final int INITIAL_CAPACITY = 16;
+
+    /**
+        * The table, resized as necessary.
+        * table.length MUST always be a power of two.
+        */
+    private Entry[] table;
+
+    // ThreadLocal.get方法最终会调用到当前线程的threadLocalMap的这个方法
+    private Entry getEntry(ThreadLocal<?> key) {
+
+    }
+}
+
+
+handler
+2种构造方法
+1. public Handler(@NonNull Looper looper)
+   public Handler(@NonNull Looper looper, @Nullable Callback callback)
+   public Handler(@NonNull Looper looper, @Nullable Callback callback, boolean async)
+2. public Handler(boolean async)、public Handler(@Nullable Callback callback, boolean async)
+    {   
+        // 如果不传looper的话，那么构造函数里会mLooper = Looper.myLooper()，如果为空那么抛异常，因此线程里面要使用handler的话，要在创建handler前先Looper.prepare()
+        mLooper = Looper.myLooper();
+        if (mLooper == null) {
+            throw new RuntimeException(
+                "Can't create handler inside thread " + Thread.currentThread()
+                        + " that has not called Looper.prepare()");
+        }
+        mQueue = mLooper.mQueue;
+        mCallback = callback;
+        mAsynchronous = async;
+    }
+
+内存泄漏：
+1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg，looper持有了mq，sThreadLocal(static的gcRoot)持有了looper
+2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg，looper持有了mq，sThreadLocal(static的gcRoot)持有了looper
+loop函数中msg处理完后会调用msg.recycleUnchecked()，这里target、callback等全部置空
+
+
+Message
+采用享元设计模式(缓存复用)
+class Message {
+    // 锁
+    public static final Object sPoolSync = new Object();
+    // 池子，采用链表的形式，当有message回收时，采用头插法(sPool = recycledMsg)
+    private static Message sPool;
+    private static int sPoolSize = 0;
+    // 复用池大小是50
+    private static final int MAX_POOL_SIZE = 50;
+}
+为啥不new，而是用obtain从pool中获取呢？
+1. 60hz时，16.7ms就会发送3个消息：msg、内存屏障、移除内存屏障；
+   频繁的new message， 如果没有消息复用机制的话内存抖动会明显，且STW(Stop the world，为了保证gc的执行会短暂暂停业务线程)
+2. 频繁的new message, 很容易出现很多的内存碎片，容易出现oom
+
+
+
+Looper：
+static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
+// prepare中创建了Looper对象并添加到sThreadLocal
+public static void prepare() {
+    prepare(true);
+}
+
+private static void prepare(boolean quitAllowed) {
+    if (sThreadLocal.get() != null) {
+        throw new RuntimeException("Only one Looper may be created per thread");
+    }
+    sThreadLocal.set(new Looper(quitAllowed));
+}
+// 构造函数中创建了mq和绑定了当前的线程
+private Looper(boolean quitAllowed) {
+        mQueue = new MessageQueue(quitAllowed);
+        mThread = Thread.currentThread();
+}
+
+MessageQueue
+多线程间共享
+不同的线程通过handler塞消息，那是如何保证线程安全的？
+    enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
+    next()函数也是synchronized (this)，因此取消息也涉及到链表的删除(尽管next只在looper运行所在的线程执行)
+
+HandlerThread 
+    HandlerThread extends Thread
+// ***************************************** 
+handlerThread怎么解决多线程问题的? 
+case：主线程new了一个HandlerThread，然后调用start，然后紧接着new Hander(handlerThread.getLooper())，这里由于cpu时间片的原因，handlerThread的looper对象可能还没执行
+ps：个人见解：这么看的话，在主线程中使用HandlerThread，使用不当容易anr啊。
+public void run() {
+    ...
+    Looper.prepare();
+    synchronized (this) {
+        mLooper = Looper.myLooper();
+        notifyAll();
+    }
+    ...
+    Looper.loop();
+    ...
+}
+public Looper getLooper() {
+     if (!isAlive()) {
+        return null;
+    }
+    
+    // If the thread has been started, wait until the looper has been created.
+    synchronized (this) {
+        // 这里为什么用while而不是if呢？不确定其他上相同锁的对象地方有没有执行notifyAll(比如继承了handlerTahread去做些锁操作等)
+        while (isAlive() && mLooper == null) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+            }
+        }
+    }
+    return mLooper;
+}
+// ***************************************** 
+
+
+
 okhttp：https://juejin.cn/post/6844904087788453896
 
 
-android:
+
+
+android Application对象和多进程关系
+同一个项目的FeelingApplication，AActivity、TestActivty、TestService，
+在AndroidManifest.xml中配置如下
+    其中TestActivity配置了android:process="com.Beggar.TestActivity"
+    其中TestService配置了android:process="com.Beggar.TestService"
+在代码里面：
+    AActivity中启动TestActivity
+    TestActivity中有一个static String flag = "1", 在onCreate中设置flag为2，然后启动TestService
+日志如下：发现service的application是全新的对象，新进程对静态数据都是各自的数据互不影响
+    I/FeelingApplication: attachBaseContext: com.li.feeling.init.application.FeelingApplication@c7c3095
+    I/FeelingApplication: onCreate: com.li.feeling.init.application.FeelingApplication@c7c3095
+    I/FeelingApplication: attachBaseContext: com.li.feeling.init.application.FeelingApplication@c7c3095
+    I/FeelingApplication: onCreate: com.li.feeling.init.application.FeelingApplication@c7c3095
+    I/FeelingApplication: TestActivity flag is: 2
+    I/FeelingApplication: attachBaseContext: com.li.feeling.init.application.FeelingApplication@bbc984c
+    I/FeelingApplication: onCreate: com.li.feeling.init.application.FeelingApplication@bbc984c
+    I/FeelingApplication: TestService flag is: 1
+多进程需要注意：由于Application的相关方法会被执行多次，因此一些功能的初始化方法要确保只调用一次。
+
+
+
 ContentProvider
 ContentProvider 的常规用法是提供内容服务，而另一个特殊的用法是提供无侵入的初始化机制
 ContentProvider.onCreate调用时机介于Application的attachBaseContext和onCreate之间
 Application.attachBaseContext() --> installContentProviders(调用所有provider的onCreat方法) --> Application.onCreat() --> MainActivity
+
+
+ANR
+不同组件(Service、BroadCast、Provider、Input(5秒)等)的超时阀值各有不同(同一组建在前后台的都不一样)
+case：App进程StartService方法，向SystemServer进程请求创建Service，此时SystemServer进程的Binder对象向ActivityManager埋下定时炸弹，然后该binder请求scheduleCreateService
+    去创建Service进程，当service创建完毕的时候，请求ActivityManager拆除定时炸弹
 
 
 lifeCycle
@@ -506,33 +709,8 @@ toast必须在主线程吗？ https://juejin.cn/post/6844904103538065422
 Toast展示内容，是inflate一个布局(主体就是TextView)，然后拿到INotificationManager服务，入队
 
 
-handler
-内存泄漏：
-1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg
-2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg
 
-Looper：
-static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
-// prepare中创建了Looper对象并添加到sThreadLocal
-public static void prepare() {
-    prepare(true);
-}
 
-private static void prepare(boolean quitAllowed) {
-    if (sThreadLocal.get() != null) {
-        throw new RuntimeException("Only one Looper may be created per thread");
-    }
-    sThreadLocal.set(new Looper(quitAllowed));
-}
-// 构造函数中创建了mq和绑定了当前的线程
-private Looper(boolean quitAllowed) {
-        mQueue = new MessageQueue(quitAllowed);
-        mThread = Thread.currentThread();
-}
-
-MessageQueue：
-多线程间共享: 不同的线程通过handler塞消息
-next()和enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
 
 
 
