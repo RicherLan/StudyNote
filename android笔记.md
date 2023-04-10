@@ -60,6 +60,81 @@ TODO：
 * mmkv
 
 
+算法：
+LRU：如何用LinkedHashMap实现 https://juejin.cn/post/6844903917524893709, LinkedHashMap天然就是LRU
+
+
+gc
+gc系列文章 https://www.zhihu.com/column/c_1293612595426095104
+
+
+IO
+现在有n个IO事件，我们如何同时处理多个流
+1. 非堵塞忙轮询：如果所有的流都没有数据，那么只会白白浪费cpu
+    while(true) {
+        for(i : stream[]) {
+            if(i has data) {
+                read data until unavailable
+            }
+        }
+    }
+
+2. 堵塞：从select可以知道，有IO事件发生了，但不知道是那哪个流(1个、多个、全部)，只能无差别轮训所有的流，找出可以读或者可以写入的流，进行操作
+    while(true) {
+        select(stream[]) // 堵塞
+        for(i : stream[]) {
+            if(i has data) {
+                read data until unavailable
+            }
+        }
+    }
+
+3. linux 2.3之后，epoll, 会把哪个流发生了怎样的io事件通知我们，此时我们对这些流的操作都是有意义的，复杂度降低到O(1)
+     while(true) {
+        active_stream[] = epoll_wait()
+        for(i in active_stream[]) {
+            read or write until unavailable
+        }
+    }
+epoll是Linux中最高效的IO多路复用机制，可以同时监控多个描述符，当某个描述符就绪(读或写就绪)，则立刻通知相应程序进行读或写操作
+epoll有3个方法，epoll_create()， epoll_ctl()，epoll_wait()_
+** epoll_create :创建epoll句柄**
+    int epoll_create(int size)；
+    ：用于创建一个epoll的句柄，size是指监听的描述符个数， 现在内核支持动态扩展，该值的意义仅仅是初次分配的fd个数，后面空间不够时会动态扩容。 当创建完epoll句柄后，占用一个fd值.
+
+    使用完epoll后，必须调用close()关闭，否则可能导致fd被耗尽。
+
+** epoll_ctl：执行对需要监听的文件描述符(fd)的操作**
+    int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)；
+
+    用于执行对需要监听的文件描述符(fd)的操作,比如EPOLL_CTL_ADD
+    fd：需要监听的文件描述符；
+    epoll_event：需要监听的事件
+
+** epoll_wait：等待事件的到来**
+    int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+
+    等待事件的到来，有三种情况会触发返回
+    1. 发生错误 返回值为负数
+    2. 等待超时（timeout）
+    3. 监测到某些文件句柄上有事件发生
+
+** epoll和eventfd结合使用**
+    eventfd中无数据，线程触发epoll_wait()的等待，该线程处于阻塞，另外一个线程通过往eventfd中write数据，使描述符可读，epoll返回，这就达到了唤醒的目的。_
+
+
+epoll、eventId相关
+eventfd 原理与实践：https://juejin.cn/post/7146239048191836190
+eventfd与epoll的使用：https://blog.csdn.net/SCHOLAR_II/article/details/127361070
+native——handler: https://juejin.cn/post/7146239048191836190
+
+pipe的4次拷贝：https://blog.csdn.net/weixin_39965673/article/details/112073414
+android 6的handler使用epoll+pipe的方式实现：https://devbins.github.io/post/pipe/
+
+
+mmap：https://www.cnblogs.com/huxiao-tee/p/4660352.html
+    总而言之，常规文件操作需要从磁盘到页缓存再到用户主存的两次数据拷贝。而mmap操控文件，只需要从磁盘到用户主存的一次数据拷贝过程。
+    说白了，mmap的关键点是实现了用户空间和内核空间的数据直接交互而省去了空间不同数据不通的繁琐过程。因此mmap效率更高。
 
 
 java线程：
@@ -95,6 +170,43 @@ public void fun2() {
         ...
     }
 }
+
+
+管程
+指的是管理共享变量以及共享变量的操作过程，让它们支持并发。
+
+synchronized：https://juejin.cn/post/6888137809929093133
+偏向锁为啥废弃，谈谈Java Synchronized 的锁机制，以及管程：https://cloud.tencent.com/developer/article/1759559
+轻量级锁、锁升级：https://bbs.huaweicloud.com/blogs/335820
+
+锁升级的图：https://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/feec7b70b0f944c4aa19899d5d0c7db4~tplv-k3u1fbpfcp-zoom-in-crop-mark:4536:0:0:0.awebp
+
+锁优化
+Synchronized 只在 JDK 1.6 以前性能才很差，因为这之前的 JVM 实现都是重量级锁，直接调用 ObjectMonitor 的 enter 和 exit。从 JDK 1.6 开始，HotSpot 虚拟机就增加了上述所说的几种优化：
+
+偏向锁
+轻量级锁
+自旋锁
+其余还有：
+
+适应性自旋
+锁消除
+锁粗化
+
+锁消除
+这属于编译器对锁的优化，JIT 编译器在动态编译同步块时，会使用逃逸分析技术，判断同步块的锁对象是否只能被一个对象访问，没有发布到其它线程。
+如果确认没有“逃逸”，JIT 编译器就不会生成 Synchronized 对应的锁申请和释放的机器码，就消除了锁的使用。
+
+锁粗化
+JIT 编译器动态编译时，如果发现几个相邻的同步块使用的是同一个锁实例，那么 JIT 编译器将会把这几个同步块合并为一个大的同步块，从而避免一个线程“反复申请、释放同一个锁“所带来的性能开销。
+
+减小锁粒度
+我们在代码实现时，尽量减少锁粒度，也能够优化锁竞争。
+
+总结
+其实现在 Synchronized 的性能并不差，偏向锁、轻量级锁并不会从用户态到内核态的切换；只有在竞争十分激烈的时候，才会升级到重量级锁。
+Synchronized 的锁是由 JVM 实现的。
+偏向锁已经被废弃了。
 
 aqs
 https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
@@ -186,8 +298,59 @@ static class ThreadLocalMap {
     }
 }
 
+内存泄漏
+ThreadLocal的原理和内存泄露分析：https://juejin.cn/post/7091649401629704223
+内存泄漏源码分析https://www.jianshu.com/p/dde92ec37bd1
+
+ThreadLocalMap 中的 key 使用了弱引用，会导致 value 出现内存泄漏。
+case： 假设在业务代码中使用完 ThreadLocal，threadLocalRef 被回收了
+    由于 ThreadLocalMap 只持有 ThreadLocal 的弱引用，没有任何强引用指向 threadlocal 实例，所以 threadlocal 就可以顺利被 GC 回收，此时 Entry 中的 key = null
+    在没有手动删除这个 Entry 以及 CurrentThread 依然运行的前提下，也存在有强引用链 threadRef -> currentThread -> threadLocalMap -> entry -> value，value 不会被回收，而这块 value 永远不会被访问到了，导致 value 内存泄漏
+导致内存泄漏的原因
+    1. 没有手动删除相应的 Entry 对象
+    2. 当前线程依然在运行
+如何解决内存泄露
+    1. 使用完 ThreadLocal，调用其 remove 方法删除对应的 Entry
+        class ThreadLocal {
+             public void remove() {
+                ThreadLocalMap m = getMap(Thread.currentThread());
+                if (m != null)
+                    m.remove(this);
+            }
+        }
+        class ThreadLocalMAp {
+            private void remove(ThreadLocal<?> key) {
+                Entry[] tab = table;
+                int len = tab.length;
+                int i = key.threadLocalHashCode & (len-1);
+                for (Entry e = tab[i];
+                    e != null;
+                    e = tab[i = nextIndex(i, len)]) {
+                    if (e.get() == key) {
+                        e.clear(); // weakReference.clearReferent(), 此时只是回收key而已
+                        expungeStaleEntry(i); // 这里给entry置空的
+                        return;
+                    }
+                }
+            }
+        }
+    2. 使用完 ThreadLocal，当前 Thread 也随之运行结束（不好控制，线程池中的核心线程不会销毁）
+
+延伸：
+threadLocalMap为啥不用weakHashMap呢，而是自己写了一个类:ThreadLocalMap；weakHashMap的entry也是弱引用，而且比threadLocal好的一点是，他对value也会释放
+threadLocal释放value是有问题的，如果使用不当，很容易内存泄漏
+    1. 线程退出(Thread.exit())中会让threadLocalMap=null：这里需要注意线程池的复用不会停止线程
+    2. threadLocal.remove
+    3. threadLocal的get和set(只有hash冲突的时候发现key为null了才会去让value=null)
+
+我觉得的一个点是，threadLocalMap的hash方式是开放地址法，可以节省空间，但感觉这并不是主要原因
+
 
 handler
+java层和native层的文章：https://juejin.cn/post/6973142800808280071
+
+堵塞和唤醒的时机：https://blog.csdn.net/ajsliu1233/article/details/124629486
+
 2种构造方法
 1. public Handler(@NonNull Looper looper)
    public Handler(@NonNull Looper looper, @Nullable Callback callback)
@@ -207,10 +370,24 @@ handler
     }
 
 内存泄漏：
-1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg，looper持有了mq，sThreadLocal(static的gcRoot)持有了looper
-2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg，looper持有了mq，sThreadLocal(static的gcRoot)持有了looper
+1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg，looper持有了mq，looper被thread.threadLocalMap.table[i].value引用
+2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg，looper持有了mq，
+    sThreadLocal.set(new Looper)中把looper存到了ThreadLocalMap.table中，thread.threadLocalMap.table(持有了looper,Entry是extends WeakReference<ThreadLocal<?>>，但是entry的value(looper)还是强引用
+3. Looper中static Looper sMainLooper; // 因此Looper.sMainLooper也是gcroot
+    public static void prepareMainLooper() {
+        prepare(false);
+        synchronized (Looper.class) {
+            if (sMainLooper != null) {
+                throw new IllegalStateException("The main Looper has already been prepared.");
+            }
+            sMainLooper = myLooper();
+        }
+    }
 loop函数中msg处理完后会调用msg.recycleUnchecked()，这里target、callback等全部置空
 
+handler的postDelay,最后执行的是sendMessageAtTime, time是SystemClock.uptimeMillis() + delayMillis,为啥不直接传递delayTime，而是传递一个时间呢
+1. 排序
+2. 有底层调用，下面的需要delay时间的话，会用这个提前算出来的减去当前时间
 
 Message
 采用享元设计模式(缓存复用)
@@ -227,8 +404,6 @@ class Message {
 1. 60hz时，16.7ms就会发送3个消息：msg、内存屏障、移除内存屏障；
    频繁的new message， 如果没有消息复用机制的话内存抖动会明显，且STW(Stop the world，为了保证gc的执行会短暂暂停业务线程)
 2. 频繁的new message, 很容易出现很多的内存碎片，容易出现oom
-
-
 
 Looper：
 static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
@@ -254,13 +429,32 @@ MessageQueue
 不同的线程通过handler塞消息，那是如何保证线程安全的？
     enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
     next()函数也是synchronized (this)，因此取消息也涉及到链表的删除(尽管next只在looper运行所在的线程执行)
+cpp层代码：https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/android_os_MessageQueue.cpp;l=188;drc=master
+
+
+native层hanler文章：https://juejin.cn/post/7146239048191836190
+1. 堵塞唤醒机制为啥不用wait和notify()
+ 回答：wait和notify是java层的机制，c/c++层的开发者也需要handler这一套机制
+2. 为啥使用的是epoll + eventfd，而不是pipe管道呢
+ 回答：android2.3的时候是使用epoll + pipe的，后面才改成了epoll + eventFd的。
+    Eventfd在信号通知的场景下，相对比pipe有非常大的资源和性能优势， 本质其实是counter(计数器)和channel(数据信道)的区别。
+    打开文件数量的差异 由于pipe是半双工的传统IPC实现方式，所有两个线程通信需要两个pipe文件描述符，而用eventfd只需要打开一个文件描述符。 总所周知，文件描述符是系统中非常宝贵的资源，linux的默认值只有1024个而已，pipe只能在两个进程/线程间使用，面向连接，使用之前就需要创建好两个pipe,而eventfd是广播式的通知，可以多对多。
+    内存使用的差别 eventfd是一个计数器，内核维护的成本非常低，大概是自旋锁+唤醒队列的大小，8个字节的传输成本也微乎其微，而pipe完全不同，一来一回数据在用户空间和内核空间有多达4次的复制，而且最糟糕的是，内核要为每个pipe分配最少4k的虚拟内存页，哪怕传送的数据长度为0.
+    与epoll完美结合 eventfd设计之初就与epoll完美结合，支持非阻塞读取等，就是为epoll而生的,而pipe是Unix时代就有了，那时候不仅没有epoll,连linux还没诞生。
+    当pipe只用来发送通知，放弃它，放心的使用eventfd。
+    eventfd配合epoll才是它存在的原
+
+IdleHandler
+是MessageQueue的静态内部类
+https://zhuanlan.zhihu.com/p/345819916
+
 
 HandlerThread 
     HandlerThread extends Thread
 // ***************************************** 
 handlerThread怎么解决多线程问题的? 
 case：主线程new了一个HandlerThread，然后调用start，然后紧接着new Hander(handlerThread.getLooper())，这里由于cpu时间片的原因，handlerThread的looper对象可能还没执行
-ps：个人见解：这么看的话，在主线程中使用HandlerThread，使用不当容易anr啊。
+ps：
 public void run() {
     ...
     Looper.prepare();
@@ -272,7 +466,16 @@ public void run() {
     Looper.loop();
     ...
 }
+
+/**
+* This method returns the Looper associated with this thread. If this thread not been started
+* or for any reason isAlive() returns false, this method will return null. If this thread
+* has been started, this method will block until the looper has been initialized.  
+* @return The looper.
+*/
 public Looper getLooper() {
+    // If this thread not been started or for any reason isAlive() returns false，
+    // case：如果handleThread没调用start，其他thread调用handleThread.getLooper()会返回null，不会堵塞
      if (!isAlive()) {
         return null;
     }
