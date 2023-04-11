@@ -444,9 +444,70 @@ native层hanler文章：https://juejin.cn/post/7146239048191836190
     当pipe只用来发送通知，放弃它，放心的使用eventfd。
     eventfd配合epoll才是它存在的原
 
+
 IdleHandler
 是MessageQueue的静态内部类
 https://zhuanlan.zhihu.com/p/345819916
+https://juejin.cn/post/6844904068129751047
+执行的时机：messageQueue取消息的时候(next()函数), 没有msg或者取出的msg的执行时间大于当前时间的时候，就会遍历执行所有的idleHandler，执行完后返回next()中的for(;;)循环继续取消息
+代码:
+Message next() {
+    int pendingIdleHandlerCount = -1; // -1 only during first iteration
+    int nextPollTimeoutMillis = 0;
+    for (;;) {
+        ...
+        nativePollOnce(ptr, nextPollTimeoutMillis);
+        ...
+        synchronized (this) {
+            // 取消息
+            ...
+
+            // 没有msg或者取出的msg的执行时间大于当前时间的时候
+            if (pendingIdleHandlerCount < 0
+                    && (mMessages == null || now < mMessages.when)) {
+                pendingIdleHandlerCount = mIdleHandlers.size();
+            }
+            if (pendingIdleHandlerCount <= 0) {
+                // No idle handlers to run.  Loop and wait some more.
+                // 消息也不执行、idleHandler也没有的时候，内存记录下mBlocked = true 然后 返回循环
+                mBlocked = true;
+                continue;
+            }
+
+            if (mPendingIdleHandlers == null) {
+                mPendingIdleHandlers = new IdleHandler[Math.max(pendingIdleHandlerCount, 4)];
+            }
+            mPendingIdleHandlers = mIdleHandlers.toArray(mPendingIdleHandlers);
+        }
+         for (int i = 0; i < pendingIdleHandlerCount; i++) {
+            keep = idler.queueIdle();
+            // 是否循环利用
+            if (!keep) {
+                synchronized (this) {
+                    mIdleHandlers.remove(idler);
+                }
+            }
+        }   
+         // Reset the idle handler count to 0 so we do not run them again.
+        pendingIdleHandlerCount = 0;
+
+        // While calling an idle handler, a new message could have been delivered
+        // so go back and look again for a pending message without waiting.
+        nextPollTimeoutMillis = 0;
+    }
+}
+执行总结：
+1. 在 MessageQueue 里 next 方法的 for 死循环内，获取 mIdleHandlers 的数量 pendingIdleHandlerCount；
+2. 通过 mMessages == null || now < mMessages.when 判断当前消息队列为空或者目前没有需要执行的消息时，给 pendingIdleHandlerCount 赋值；
+3. 当数量大于 0，遍历取出数组内的 IdleHandler，执行 queueIdle() ；
+4. 返回值为 false 时，主动移除监听 mIdleHandlers.remove(idler) ；
+
+使用场景：耗时短、不紧急的事情处理
+1. 如果启动的 Activity、Fragment、Dialog 内含有大量数据和视图的加载，导致首次打开时动画切换卡顿或者一瞬间白屏，可将部分加载逻辑放到 queueIdle() 内处理。例如引导图的加载和弹窗提示等；
+2. 系统源码中 ActivityThread 的 GcIdler，在某些场景等待消息队列暂时空闲时会尝试执行 GC 操作；
+3. 系统源码中  ActivityThread 的 Idler，在 handleResumeActivity() 方法内会注册 Idler()，等待 handleResumeActivity 后视图绘制完成，消息队列暂时空闲时再调用 AMS 的 activityIdle 方法，检查页面的生命周期状态，触发 activity 的 stop 生命周期等。这也是为什么我们 BActivity 跳转 CActivity 时，BActivity 生命周期的 onStop() 会在 CActivity 的 onResume() 后。
+4. 一些第三方框架 Glide 和 LeakCanary 等也使用到 IdleHandler，感兴趣的朋友可以看看源码
+
 
 
 HandlerThread 
@@ -523,7 +584,13 @@ android Application对象和多进程关系
 
 
 ContentProvider
+简单介绍的文章：https://blog.csdn.net/carson_ho/article/details/76101093
+    定义：内容提供者，是android四大组建之一
+    作用：进程间进行数据交互 & 共享，即夸进程通信
+    原理：Binder
+    优点：安全；访问简单、高效；统一了数据访问方式
 ContentProvider 的常规用法是提供内容服务，而另一个特殊的用法是提供无侵入的初始化机制
+
 ContentProvider.onCreate调用时机介于Application的attachBaseContext和onCreate之间
 Application.attachBaseContext() --> installContentProviders(调用所有provider的onCreat方法) --> Application.onCreat() --> MainActivity
 
@@ -631,8 +698,75 @@ adapter原理：
 
 
 
+WindowManager
 
-view显示的过程
+Window, WindowManager、WindowManagerGlobal、WindowManagerService之间的关系：https://juejin.cn/post/6844903893634138120
+
+Window分类：
+1. ApplicationWindow：
+    Activity的Window类型是TYPE_APPLICATION，在WMS有一个唯一的AppWindowToken与之对应。
+    Dialog的Window类型也是TYPE_APPLICATION(Dialog不是子窗口)，Dialog和其所在的Activity共用一个AppWindowToken
+2. SubWindow 
+    子窗口，不能独立存在，必须依附其他窗口(共用一个token)。
+    PopupWindow的Window类型是TYPE_APPLICATION_PANEL，TYPE_APPLICATION_PANEL是子窗口的一种,PopupWindow和其所在的Activity共用一个AppWindowToken
+3. SystemWindow 
+    toast、输入法窗口、系统音量条窗口、系统错误窗口都属于系统窗口
+    Toast的Window类型是TYPE_TOAST，TYPE_TOAST是系统窗口的一种，Toast的token是由NotificationManagerService创建的，每个Toast对应一个自己的token，Toast的token在WMS对应的是WindowToken。
+
+window类型的type值：值越大，展示的越靠前(屏幕最上面)，比如来了个电话弹窗会盖在最上面
+    ApplicationWindow：FIRST_APPLICATION_WINDOW = 1  LAST_APPLICATION_WINDOW = 99
+    SubWindow：FIRST_SUB_WINDOW = 1000  LAST_SUB_WINDOW = 1999;
+    SystemWindow：FIRST_SYSTEM_WINDOW = 2000  LAST_SYSTEM_WINDOW = 2999
+
+Activity/Dialog/PopupWindow/Toast与WindowState:
+    Activity/Dialog/PopupWindow/Toast在WMS都有对应的WindowState，
+    只是Activity/Dialog/PopupWindow的WindowState属于同一个AppWindowToken，也就是Activity的token,
+    而Toast的WindowState属于自己独有的WindowToken。
+
+Window的flag：一些属性，比如脸靠近屏幕时不能触摸事件等flag
+
+// 继承自ViewManager，ViewGroup也实现了ViewManager
+public interface WindowManager extends ViewManager {
+
+}
+//  实现类是WindowManagerImpl
+public final class WindowManagerImpl implements WindowManager {
+}
+
+ViewRootImpl
+public final class ViewRootImpl implements ViewParent,View.AttachInfo.Callbacks, ThreadedRenderer.DrawCallbacks { }
+1. View树的树根，并管理view树
+2. 触发view的测量、布局和绘制
+3. 输入响应的中转站：
+    ViewRootImpl --> DecorView --> Activity --> PhoneWindow --> DecorView --> ViewGroup --> View
+    为什么DecorView不直接把事件分发给子view呢？因为窗口要有一些处理，比如打电话脸部靠近屏幕的时候不会响应点击；在比如dialog点击外部区域收起弹窗
+4. 负责与wms进行进程间通信： (ViewRootImpl-->IWindowSession)本地进程  --------Binder通信--------  SystemService进程(WMS的Session)
+
+
+window创建和显示的过程
+大流程简单总结：
+1. ActivityThread.performLaunchActivity() --> Activity.attach() 
+    Activity#attach() 方法内phontWindow被创建，并同时创建WindowManagerImpl负责维护phoneWindow的内容
+2. ActivityThread.mInstrumentation.callActivityOnCreate() --> Activity.setContentView()
+    Activity#setContentView() 方法内创建DecorView作为phoneWindow的内容(phoneWindow.installDecor函数里面会decorView.setWindow(this))
+3. ActivityThread.handleResumeActivity() --> 
+                                      -->  WindowManagerImpl.addView()
+                                      -->  WindowManagerGlobal.addView()
+                                      -->  ViewRootImpl.addToDisplay()
+                                      -->  Session.addWindow()
+                                      -->  WMS
+    WindowManagerImpl决定管理DecorView，并创建ViewRootImpl实例，将ViewRootImpl与View树关联，这样ViewRootImpl就可以指挥view树的具体工作。
+
+Window更新的过程
+windowManagerImpl.updateViewLayout(view, params) 
+    -> WindowManagerGlobal.updateViewLayout(view, params) 
+        --> view.setLayoutParams(wparams)
+        --> viewRootImpl.setLayoutParams(wparams, false) 
+            --> viewRootImpl.scheduleTraversals()
+
+
+
+window创建和显示的过程 -- 代码细节总结：
 1. create
 ActivitThread: performLaunchActivity()
                     --> ContextImpl appContext 创建 
