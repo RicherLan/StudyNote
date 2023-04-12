@@ -1091,6 +1091,6 @@ okhttp、fresco、retrofit、gson、rxjava、ARouter
 插件化的几种方法
 viewFlipper、viewPager看一下
 
-    <img width="750" alt="image" src="https://user-images.githubusercontent.com/49143666/231373386-4c3463fe-6e39-4dfa-8027-9fa959fe5d3f.png">
+ <img width="750" alt="image" src="https://user-images.githubusercontent.com/49143666/231373386-4c3463fe-6e39-4dfa-8027-9fa959fe5d3f.png">
 
 
