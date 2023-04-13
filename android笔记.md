@@ -765,7 +765,6 @@ windowManagerImpl.updateViewLayout(view, params)
             --> viewRootImpl.scheduleTraversals()
 
 
-
 window创建和显示的过程 -- 代码细节总结：
 1. create
 ActivitThread: performLaunchActivity()
@@ -812,7 +811,7 @@ Window：                            --> 在这里根据window的类型(subWindo
                                -->  mViews.add(view); mRoots.add(root); mParams.add(wparams); // 可见WindowManagerGlobal是管理一个进程的所有的view
                                --> root.setView(view, wparams, panelParentView, userId); // 到这里view的测量渲染等全部交给ViewRootImpl去处理了
 ViewRootImpl:                    void setView(View view, WindowManager.LayoutParams attrs, View panelParentView, int userId) 
-                                    --> requestLayout()
+                                    --> requestLayout() // 这是第一次view触发绘制的地方
                                         --> checkThread(); // 检查线程，也就是子线程无法更新ui的原因。
                                         --> mLayoutRequested = true; // 在measureHierarchy()后，设置为false。然后开始所谓的3大流程
                                         --> scheduleTraversals(); // invalidate中先mDirty.set(0, 0, mWidth, mHeight);然后调用scheduleTraversals()，注意这里没有给mLayoutRequested设置为true
@@ -822,7 +821,47 @@ ViewRootImpl:                    void setView(View view, WindowManager.LayoutPar
                                         mInputEventReceiver = new WindowInputEventReceiver(inputChannel, Looper.myLooper()); WindowInputEventReceiver是ViewRootImpl的内部类
                                     --> view.assignParent(this); // 设置父亲为VRI: view.mParent = parent（类型是ViewParent，如ViewGroup实现了ViewParent）
 
-ViewRootImpl.scheduleTraversals()：
+
+ViewRootImpl.scheduleTraversals()： https://cloud.tencent.com/developer/article/1582588
+    --> mTraversalScheduled = true;
+    --> mTraversalBarrier = mHandler.getLooper().getQueue().postSyncBarrier(); // 添加同步屏障
+    --> mChoreographer.postCallback(Choreographer.CALLBACK_TRAVERSAL, mTraversalRunnable, null); // 编舞者
+        --> Choreographer#scheduleFrameLocked(now);
+            --> scheduleVsyncLocked() // 请求Vsync垂直同步信号
+                --> mDisplayEventReceiver.scheduleVsync(); --> nativeScheduleVsync(mReceiverPtr);
+        --> messageQueue.next() --> messageQueue.nativePollOnce()
+            --> native调用mDisplayEventReceiver.dispatchVsync()  // 被到来的Vsync唤醒 
+                --> onVsync(long timestampNanos, long physicalDisplayId, int frame) // 执行vsync回调
+                    --> 向messageQueue插入异步消息，消息的执行体是Choreographer.doFrame(mTimestampNanos, mFrame);
+                        --> 内部如果丢帧会报经典的日志："Skipped " + skippedFrames + " frames!  "+"The application may be doing too much work on its main thread."
+                            doFrame() {
+                                ......
+                                // 当前时间
+                                startNanos = System.nanoTime();
+                                // 经过了多长时间
+                                final long jitterNanos = startNanos - frameTimeNanos;
+                                // 超过了间隔(比如16ms), 从申请vsync到这里执行应该在mFrameIntervalNanos间隔内
+                                if (jitterNanos >= mFrameIntervalNanos) {
+                                    // 计算丢了多少帧
+                                    final long skippedFrames = jitterNanos / mFrameIntervalNanos;
+                                    log("Skipped xxxx")
+                                }
+                                ......
+                            }
+                    --> messageQueue取出该消息后，执行message，即doFrame，内部执行ViewRootImpl向mChoreographer添加的mTraversalRunnable，该runnable内执行ViewRootImpl#doTraversal
+                     doTraversal函数中：
+                        --> mTraversalScheduled = false; mHandler.getLooper().getQueue().removeSyncBarrier(mTraversalBarrier); // 移除同步屏障
+                        --> performTraversals();
+                            --> measureHierarchy() // 预测量，内部最多执行3次performMeasure()
+                            --> performMeasure() // measureHierarchy()后，performMeasure()还最多会执行两次
+                                --> measure()
+                            --> performLayout()
+                                --> layout()
+                            --> performDraw()
+                                --> draw()
+
+
+
 
 view measure
 1. MeasureSpec.UNSPECIFIED用在啥场景：
@@ -903,6 +942,39 @@ View.draw(canvas) (decorView)
                                     --> 否则执行 draw(canvas);
 
 
+SurfaceFlinger
+SF是整个Android系统渲染的核心进程，所有应用的渲染逻辑最终都会来到SF中进行处理，最终会把处理后的图像数据交给CPU或者GPU处理。
+SF是生产者消费者思想，生产者生产图元添加到SF的队列中，SF消费队列的图元数据(绘制对应的Layer)
+View、Canvas与Surface的关系：https://www.jianshu.com/p/6d99948d2a0a
+DecorView --- Surface(canvas = surface.lockCanvas(Rect dirty))，存储图像数据 --- Layer图层     // 3者一一对应
+......
+DecorView --- Surface，存储图像数据 --- Layer图层
+SurfaceFlinger把多个图层合成，然后让cpu或者gpu处理
+
+好文章：https://www.jianshu.com/p/3c61375cc15b
+每一个应用程序的图层在SurfaceFlinger里称为一个Layer， 而每个Layer都拥有一个独立的BufferQueue, 每个BufferQueue都有多个Buffer,Android 系统上目前支持每个Layer最多64个buffer, 这个最大值被定义在frameworks/native/gui/BufferQueueDefs.h， 每个buffer用一个结构体BufferSlot来代表。
+<img width="813" alt="image" src="https://user-images.githubusercontent.com/49143666/231415156-2d4a87fc-f5d1-4a23-95b8-b1e749d68b1b.png">
+
+    
+<img width="964" alt="image" src="https://user-images.githubusercontent.com/49143666/231407310-43f56f2e-cde0-4e90-8714-2b977639314b.png">    
+双缓冲区 + 同步信号 
+如果没有同步信号的话：本质就是两个缓冲区操作速率不一样
+    1. 系统帧率小于屏幕刷新率：长时间都是同一帧，感觉卡顿
+    2. 系统帧率大于屏幕刷新率：屏幕撕裂，甚至跳帧
+    方案：让屏幕控制前后缓冲区的切换，让系统帧率配合屏幕刷新率的节奏
+<img width="625" alt="image" src="https://user-images.githubusercontent.com/49143666/231373888-a3d8c49b-fa24-4319-a0c3-25d95642b8a1.png">
+<img width="530" alt="image" src="https://user-images.githubusercontent.com/49143666/231373952-fd371dbf-f3c6-40ca-a109-93b7631bb0ee.png">
+<img width="855" alt="image" src="https://user-images.githubusercontent.com/49143666/231375187-3b273f61-0c71-4456-84ad-03f315b5e935.png">
+图中CPU比如生产位图（BitMap），然后GPU负责颜色转换(如#FFF999D转为LED的硬件色)、珊格化(如位图大小和要展示(屏幕)的大小不一样，要缩放，gpu就计算放大缩小)
+
+双缓冲的问题：CPU、GPU空等(图中的空白部分都在等待)
+<img width="973" alt="image" src="https://user-images.githubusercontent.com/49143666/231382329-24efa3ea-d26a-4a08-89d9-8ae292671685.png">
+
+三缓冲：
+<img width="896" alt="image" src="https://user-images.githubusercontent.com/49143666/231383626-8671ed39-37a5-412c-aa57-fb52e064a105.png">
+每个window都有3个缓冲：查看命令 adb shell dumpsys SurfaceFlinger
+<img width="1715" alt="image" src="https://user-images.githubusercontent.com/49143666/231386229-f0489ec1-f778-4c34-9e65-58472e40a871.png">
+<img width="1532" alt="image" src="https://user-images.githubusercontent.com/49143666/231386453-3b17b819-9ace-45ab-a6d5-fb56a226889d.png">
 
 
 事件分发：
@@ -1090,7 +1162,5 @@ okhttp、fresco、retrofit、gson、rxjava、ARouter
 热修复的几种方法
 插件化的几种方法
 viewFlipper、viewPager看一下
-
- <img width="750" alt="image" src="https://user-images.githubusercontent.com/49143666/231373386-4c3463fe-6e39-4dfa-8027-9fa959fe5d3f.png">
 
 
