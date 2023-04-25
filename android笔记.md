@@ -351,7 +351,60 @@ threadLocal释放value是有问题的，如果使用不当，很容易内存泄�
 
 ## Android启动流程
 <img width="842" alt="image" src="https://user-images.githubusercontent.com/49143666/231740244-9ec3b3b2-dea5-4411-b201-c92455319159.png">
+<img width="499" alt="image" src="https://user-images.githubusercontent.com/49143666/234188880-92a6d8e7-186a-4d94-81b5-259029f765e7.png">
+<img width="531" alt="image" src="https://user-images.githubusercontent.com/49143666/234189022-35eca2e8-177d-4d2e-9da8-bbc46a4de493.png">
+一些关键性的进程如果杀死了，系统会重启，比如init进程、zygoyte进程等
 
+* 进程、jvm、native、内核空间、用户空间的关系：
+<img width="854" alt="image" src="https://user-images.githubusercontent.com/49143666/234202332-4ed5c32c-e294-4f89-aa3e-2dbf32d05659.png">
+
+
+##### init进程
+<img width="980" alt="image" src="https://user-images.githubusercontent.com/49143666/234253571-6a52617a-8fe2-4f7e-988e-e52627fff699.png">
+
+##### init创建的进程有哪些呢
+如Zygite进程、Audio进程、SurfaceFlinger进程等都是由init进程创建的
+<img width="1016" alt="image" src="https://user-images.githubusercontent.com/49143666/234254385-edfb6340-c83e-423d-8d23-593ca570e342.png">
+
+###### init处理的重要事情
+1. 挂载文件
+2. 设置selinux(安全策略)
+3. 开启属性服务，设置到epoll中
+4. 解析init.rc
+5. 循环执行脚本(init.rc解析出来的) --  如init.rc文件中有import zygote.rc, 然后有启动zygote的相关语句
+<img width="810" alt="image" src="https://user-images.githubusercontent.com/49143666/234188176-93cb33cd-2612-4c93-bafa-579fba99bd37.png">
+6. 循环等待
+
+##### zygote进程
+##### zygote工作内容
+<img width="1023" alt="image" src="https://user-images.githubusercontent.com/49143666/234255397-fec29005-1c3f-4396-9560-fd6185477caa.png">
+
+init_zygote32.rc、init_zygote64.rc、init_zygote64_32.rc等，注意文件中的启动参数
+<img width="1041" alt="image" src="https://user-images.githubusercontent.com/49143666/234189524-b122e9e3-26a1-453e-bcc3-8f5ad2be1ab0.png">
+app_process/Android.bp文件中声明了app_main.cpp, 该文件中的main方法来启动zygote和SystemServer
+<img width="911" alt="image" src="https://user-images.githubusercontent.com/49143666/234194710-7f35b231-59fb-4723-8e0c-0bcfd7ed5e19.png">
+<img width="860" alt="image" src="https://user-images.githubusercontent.com/49143666/234195447-0445228b-3bcb-435e-afb2-d6056b2314c8.png">
+<img width="844" alt="image" src="https://user-images.githubusercontent.com/49143666/234193797-efc3e16e-559d-4b43-8955-34a0bf0f7d59.png">
+<img width="873" alt="image" src="https://user-images.githubusercontent.com/49143666/234194533-24402cce-b4c3-480b-a963-390f47c5ace4.png">
+
+###### zygote的native的启动细节：
+<img width="892" alt="image" src="https://user-images.githubusercontent.com/49143666/234208102-8489dcfd-46e5-4716-b24c-58a00fe1cbdd.png">
+最终调用到ZygoteInit.java#main
+
+###### zygote的java启动细节：ZygoteInit.java
+1. preload(xxx) // 预加载，加快进程的启动
+<img width="755" alt="image" src="https://user-images.githubusercontent.com/49143666/234228775-b13d57fd-05aa-4803-9848-55752f7c3c62.png">
+2. zygoteServer = new ZygoteServer(isPrimaryZygote) // 里面是socket，比如ams请求创建进程就是socket通信zygote的
+3. Runnable r = forkSystemServer // 启动SystemServer进程，其中AMS、WMS、PMS等九十多个服务都在SystemServer进程
+4. caller = zygoteServer.runSelectLoop(abiList) // 死循环，接收AMS传过来的消息
+
+###### zygote总结
+<img width="519" alt="image" src="https://user-images.githubusercontent.com/49143666/234242053-b0b1d2ef-fae8-47c4-b045-e6b81d5fc818.png">
+
+#### SystemServer进程
+##### zygote的forkSystemServer分析
+
+##### SystemServer进程的启动流程分析
 
 
 ## handler
