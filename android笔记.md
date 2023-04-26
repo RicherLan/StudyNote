@@ -406,6 +406,26 @@ app_process/Android.bp文件中声明了app_main.cpp, 该文件中的main方法�
 
 ##### SystemServer进程的启动流程分析
 
+##### SystemServer进程的执行
+<img width="997" alt="image" src="https://user-images.githubusercontent.com/49143666/234517113-2ab335ae-e2ea-4cb9-8bcf-e0b465be4f40.png">
+<img width="683" alt="image" src="https://user-images.githubusercontent.com/49143666/234520875-e17354c3-5ea7-4a06-8512-ecc2cdf12880.png">
+<img width="935" alt="image" src="https://user-images.githubusercontent.com/49143666/234521453-b02e53e3-bba1-4749-92a7-d778ec348108.png">
+SystemServer.main中执行createSystemContext,该函数内会执行ActivityThread.systemMain(),该函数会new ActivityThread()，然后rhread.attach(true, 0) 注意这个true，ActivityThread也会有自己的context和application
+<img width="743" alt="image" src="https://user-images.githubusercontent.com/49143666/234518935-c12affab-9e56-4474-8e90-27ee7320fc9f.png">
+
+##### SystemServer如何管理服务
+<img width="854" alt="image" src="https://user-images.githubusercontent.com/49143666/234543340-ae0f4f25-917f-42b8-b23e-e7a935010f62.png">
+<img width="814" alt="image" src="https://user-images.githubusercontent.com/49143666/234543482-c9963d93-45ac-42bc-945e-7483d83b8efc.png">
+
+
+##### SystemServer、SystemServiceManager、SystemService、ServiceManager
+* SystemServer：进程，管理service
+* SystemServiceManager具体管理service的东西
+* SystemService：所有的服务继承自SystemService
+    ActivityTaskManagerService extends IActivityTaskManagerService.Stub，ActivityTaskManagerService有一个静态内部类Lifecycle extends SystemService，这个内部类中有一个ActivityTaskManagerService mService成员。由此可见，解决java多继承的方法之一可以这样。
+<img width="690" alt="image" src="https://user-images.githubusercontent.com/49143666/234547022-41fc7b06-d81d-4fa0-b4c3-c6007f59c0df.png">
+* ServiceManager：进程
+
 
 ## handler
 java层和native层的文章：https://juejin.cn/post/6973142800808280071
