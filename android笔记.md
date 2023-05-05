@@ -419,12 +419,38 @@ SystemServer.main中执行createSystemContext,该函数内会执行ActivityThrea
 
 
 ##### SystemServer、SystemServiceManager、SystemService、ServiceManager
+<img width="967" alt="image" src="https://user-images.githubusercontent.com/49143666/236172015-f1e60cf4-eb29-46d3-8f59-b452b0164543.png">
 * SystemServer：进程，管理service
 * SystemServiceManager具体管理service的东西
 * SystemService：所有的服务继承自SystemService
     ActivityTaskManagerService extends IActivityTaskManagerService.Stub，ActivityTaskManagerService有一个静态内部类Lifecycle extends SystemService，这个内部类中有一个ActivityTaskManagerService mService成员。由此可见，解决java多继承的方法之一可以这样。
 <img width="690" alt="image" src="https://user-images.githubusercontent.com/49143666/234547022-41fc7b06-d81d-4fa0-b4c3-c6007f59c0df.png">
 * ServiceManager：进程
+atms注册到ServiceManager中
+<img width="792" alt="image" src="https://user-images.githubusercontent.com/49143666/236171121-0ef1ea6e-bd73-472f-b51d-e7b762bfc384.png">
+<img width="762" alt="image" src="https://user-images.githubusercontent.com/49143666/236171369-6c728355-0a8f-49b2-a8cf-c98fc648557f.png">
+
+
+
+## AMS
+#### 启动：SystemServer中启动(startBootService函数中)
+AMS：
+<img width="763" alt="image" src="https://user-images.githubusercontent.com/49143666/236179794-f96f67ac-5f0b-4f5d-8bd2-49324120b8e8.png">
+ATMS：
+<img width="686" alt="image" src="https://user-images.githubusercontent.com/49143666/236173946-7acf07fe-12a3-432e-a213-4f9bd1f4a78d.png">
+LocalServices中添加服务：
+<img width="735" alt="image" src="https://user-images.githubusercontent.com/49143666/236179383-6d701bec-92fa-44d8-8b52-3792aff2f03e.png">
+
+* AMS做的事情很多
+在SystemServer中创建好AMS后，会调用AMS的setSystemProcess方法，该方法里创建了很多其他服务(如电源管理、内存服务、权限、进程信息等)并添加到了ServiceManager：
+<img width="1155" alt="image" src="https://user-images.githubusercontent.com/49143666/236180850-a0b53f9e-9087-488a-ab0f-81e890541e60.png">
+
+#### Application应用启动流程
+* 整体图：
+<img width="581" alt="image" src="https://user-images.githubusercontent.com/49143666/236182258-1440749d-0e18-4fd0-bbfa-97970be4d0e8.png">
+* ActivityStackSuperVisor启动Activity的时候，判断如果进程是否存在
+<img width="867" alt="image" src="https://user-images.githubusercontent.com/49143666/236191521-e4451eab-ac5f-4eaa-95b4-2f94b401c744.png">
+
 
 
 ## handler
