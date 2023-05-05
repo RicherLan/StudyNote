@@ -446,10 +446,45 @@ LocalServices中添加服务：
 <img width="1155" alt="image" src="https://user-images.githubusercontent.com/49143666/236180850-a0b53f9e-9087-488a-ab0f-81e890541e60.png">
 
 #### Application应用启动流程
-* 整体图：
+##### 整体图：
 <img width="581" alt="image" src="https://user-images.githubusercontent.com/49143666/236182258-1440749d-0e18-4fd0-bbfa-97970be4d0e8.png">
-* ActivityStackSuperVisor启动Activity的时候，判断如果进程是否存在
+##### ActivityStackSuperVisor启动Activity的时候，判断如果进程是否存在
 <img width="867" alt="image" src="https://user-images.githubusercontent.com/49143666/236191521-e4451eab-ac5f-4eaa-95b4-2f94b401c744.png">
+##### 应用进程的创建启动
+<img width="1034" alt="image" src="https://user-images.githubusercontent.com/49143666/236396306-dfca7007-83d5-459a-a03d-9a4d5d74db21.png">
+* ProcessRecord：描述应用进程的信息，注意看里面的数据：如ApplicationInf,IApplicationThread,Pid等，很重要
+<img width="805" alt="image" src="https://user-images.githubusercontent.com/49143666/236383241-4b2efe25-b9f1-40d0-9c06-2304409de5f8.png">
+* ProcessList
+是AMS中的属性成员，ProcessList中有一个List<ProcessRecord> mLruProcesses表示正在运行的application，排序方式是最近使用。
+进程优先级的枚举也是在这个类里面定义的
+* 创建应用进程分析
+AMS.startProcessLocked(processName,APplicationInfo, ...) --> ProcessList.startProcessLocked(processName,APplicationInfo, ...) --> ProcessList.startProcess() --> Process.start --> ZYGOTE_PROCESS.start --> ZygoteProcess.zygoteSendAndGetResult --> ZygoteServer#runSelectLoop函数在一直监听消息(该方法是在ZygoteInit#main方法中调用的) --> ZygoteConnection.processOneCommand(ZygoteServer) --> Zygote.forkAndSpecialize --> nativeForkAndSpecialize
+<img width="1137" alt="image" src="https://user-images.githubusercontent.com/49143666/236384045-6732fdb4-0055-4971-ba5f-1972626d2f28.png">
+<img width="1145" alt="image" src="https://user-images.githubusercontent.com/49143666/236384409-146c03c4-6802-4fcb-99c1-bd097242fa1e.png">
+<img width="1128" alt="image" src="https://user-images.githubusercontent.com/49143666/236384529-c4682c73-8761-4ff1-bca0-b7a4d33017ed.png">
+<img width="1128" alt="image" src="https://user-images.githubusercontent.com/49143666/236384529-c4682c73-8761-4ff1-bca0-b7a4d33017ed.png">
+<img width="1165" alt="image" src="https://user-images.githubusercontent.com/49143666/236384881-48d9f98b-aaa3-47e1-ba65-3c0a73ab3d27.png">
+<img width="1192" alt="image" src="https://user-images.githubusercontent.com/49143666/236385189-6d6c95b5-4f08-4d74-990d-c509127e8cde.png">
+<img width="874" alt="image" src="https://user-images.githubusercontent.com/49143666/236385343-1b3ff7d1-16b6-4146-bdb0-fcdc3b981c20.png">
+* zygote fork进程后返回分析
+zygoteConnection.handleChildProc --> ZygoteInit.zygoteInit -->ZygoteInit.nativeZygiteInit( App_main.onZygoteInit() --> ProcessState::self() ) --> RuntimeInit.applicationInit --> 最终执行ActivityThread.main
+<img width="1152" alt="image" src="https://user-images.githubusercontent.com/49143666/236388214-a6c56d7a-7c93-41e7-9fcf-2dc2de22f8e8.png">
+<img width="1141" alt="image" src="https://user-images.githubusercontent.com/49143666/236389176-bac393b5-f5ba-4e1b-a952-00d91be21307.png">
+<img width="1138" alt="image" src="https://user-images.githubusercontent.com/49143666/236389097-090ec298-4e03-489f-90f6-4210dd95e51d.png">
+<img width="785" alt="image" src="https://user-images.githubusercontent.com/49143666/236389415-bc66ca7e-2e50-4873-b896-b8b7af3edcb0.png">
+<img width="770" alt="image" src="https://user-images.githubusercontent.com/49143666/236389574-8c7f93d2-09c6-4c20-a0ae-a456085771d3.png">
+<img width="952" alt="image" src="https://user-images.githubusercontent.com/49143666/236389739-ce4e8a19-df38-45c3-938d-27f27bc8b824.png">
+<img width="1149" alt="image" src="https://user-images.githubusercontent.com/49143666/236389953-e5c28923-f9a4-468a-9843-8f4744d5613f.png">
+RuntimeInit.applicationInit
+<img width="1141" alt="image" src="https://user-images.githubusercontent.com/49143666/236391205-9974b59d-48b1-4b18-8ff1-b5172ba750cd.png">
+<img width="770" alt="image" src="https://user-images.githubusercontent.com/49143666/236391059-e4c0cc5f-ab7e-4588-9d2d-e45f2fe5a2e5.png">
+<img width="1171" alt="image" src="https://user-images.githubusercontent.com/49143666/236391418-6d8c583c-f9ea-4d55-adaf-26d769da6d93.png">
+ActivityThread.main的执行, main中调用activityThread.attach 
+<img width="1156" alt="image" src="https://user-images.githubusercontent.com/49143666/236391912-96c8ed0a-3bc6-44e2-872a-e84776bb42fc.png">
+attach中调用Ams.attchApplication(ApplicationThread mAppThread, startseq)，传递mAppThread binder给ams
+<img width="1106" alt="image" src="https://user-images.githubusercontent.com/49143666/236397323-2b9a7161-3b34-40cf-a8fc-397eadb5daa8.png">
+<img width="1110" alt="image" src="https://user-images.githubusercontent.com/49143666/236398334-c986e39f-ad48-4ede-9d8f-adf29495ab12.png">
+
 
 
 
