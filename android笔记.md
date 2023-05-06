@@ -349,7 +349,7 @@ threadLocal释放value是有问题的，如果使用不当，很容易内存泄�
 
 
 
-## Android启动流程
+## Android启动流程(源码基于sdk30)
 <img width="842" alt="image" src="https://user-images.githubusercontent.com/49143666/231740244-9ec3b3b2-dea5-4411-b201-c92455319159.png">
 <img width="499" alt="image" src="https://user-images.githubusercontent.com/49143666/234188880-92a6d8e7-186a-4d94-81b5-259029f765e7.png">
 <img width="531" alt="image" src="https://user-images.githubusercontent.com/49143666/234189022-35eca2e8-177d-4d2e-9da8-bbc46a4de493.png">
@@ -432,7 +432,9 @@ atms注册到ServiceManager中
 
 
 
-## AMS
+## AMS(源码基于sdk30)
+<img width="778" alt="image" src="https://user-images.githubusercontent.com/49143666/236617408-a621bf9b-9d87-4377-8157-9be21ca41d8b.png">
+* 注意android12及其之后已经没有ActivityStack和ActivityStackSupervisor了，用的是Task.java
 #### 启动：SystemServer中启动(startBootService函数中)
 AMS：
 <img width="763" alt="image" src="https://user-images.githubusercontent.com/49143666/236179794-f96f67ac-5f0b-4f5d-8bd2-49324120b8e8.png">
@@ -559,9 +561,28 @@ attach中调用Ams.attchApplication(ApplicationThread mAppThread, startseq)，�
 <img width="1209" alt="image" src="https://user-images.githubusercontent.com/49143666/236613671-45b7b64b-45a7-4d02-a4cd-b79c40736aa5.png">
 声明周期执行
 <img width="1188" alt="image" src="https://user-images.githubusercontent.com/49143666/236613764-8be84853-2b33-45e0-a3c8-fa5f7e642a52.png">
+Activity的onStart
+<img width="1112" alt="image" src="https://user-images.githubusercontent.com/49143666/236613808-4e7c9478-0abc-4605-9278-16e2e9897f6a.png">
+Activity的onResume
+<img width="1180" alt="image" src="https://user-images.githubusercontent.com/49143666/236613898-c1eaa264-20d9-427b-a561-d52ab45b0672.png">
+<img width="1077" alt="image" src="https://user-images.githubusercontent.com/49143666/236613922-0b941ad0-ac9e-47ea-a0ec-cdadd736c4aa.png">
+<img width="1185" alt="image" src="https://user-images.githubusercontent.com/49143666/236613972-13d6fbc2-7652-4927-8fb4-4d8f1cffcb20.png">
+<img width="1104" alt="image" src="https://user-images.githubusercontent.com/49143666/236613988-2db04e1d-56e4-4ae9-a7d8-885a883a7d4e.png">
+<img width="648" alt="image" src="https://user-images.githubusercontent.com/49143666/236615119-a4c37459-5257-42c1-b572-cf8e80af5808.png">
+最后处理window这块
+<img width="1108" alt="image" src="https://user-images.githubusercontent.com/49143666/236613956-852421a3-2ebd-4346-aaff-054ae407498b.png">
 
-* 第五阶段
+* 第五阶段（ActivityA的onStop）
+<img width="811" alt="image" src="https://user-images.githubusercontent.com/49143666/236616322-5991db43-3105-4f42-95e6-5494dd16dfac.png">
+<img width="1183" alt="image" src="https://user-images.githubusercontent.com/49143666/236616028-fbbd49a4-985a-4a9f-8b7a-eae6d15054fb.png">
+<img width="1131" alt="image" src="https://user-images.githubusercontent.com/49143666/236616108-6db66eb0-22f3-459e-882d-21635c889505.png">
+<img width="1188" alt="image" src="https://user-images.githubusercontent.com/49143666/236616201-26dad6d2-6cd6-45fa-a6fa-69b4e541524d.png">
+<img width="1192" alt="image" src="https://user-images.githubusercontent.com/49143666/236616380-91efefbd-ca02-4088-809f-47b038c30487.png">
+封装stop事件为stopActivityItem
+<img width="1197" alt="image" src="https://user-images.githubusercontent.com/49143666/236616460-da7017bb-355e-4bfa-b140-dbb07119ff7f.png">
 
+
+## Activity的启动模式
 
 
 ## handler
@@ -915,6 +936,7 @@ adapter原理：
 完成适配             void finishUpdate(ViewGroup container)      如viewPager在populate方法快结束的时候调用，FragmentPagerAdapter的实现为fragmentTraction.commitNowAllowingStateLoss
 
 
+I* (为什么onResume方法中不可以获取View宽高)[https://blog.csdn.net/c6E5UlI1N/article/details/129210595]
 
 WindowManager
 
