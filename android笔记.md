@@ -457,6 +457,8 @@ LocalServices中添加服务：
 * ProcessList
 是AMS中的属性成员，ProcessList中有一个List<ProcessRecord> mLruProcesses表示正在运行的application，排序方式是最近使用。
 进程优先级的枚举也是在这个类里面定义的
+* AMS如何管理进程的
+<img width="795" alt="image" src="https://user-images.githubusercontent.com/49143666/236402411-93259e55-8648-4584-8122-7785d53262d7.png">
 * 创建应用进程分析
 AMS.startProcessLocked(processName,APplicationInfo, ...) --> ProcessList.startProcessLocked(processName,APplicationInfo, ...) --> ProcessList.startProcess() --> Process.start --> ZYGOTE_PROCESS.start --> ZygoteProcess.zygoteSendAndGetResult --> ZygoteServer#runSelectLoop函数在一直监听消息(该方法是在ZygoteInit#main方法中调用的) --> ZygoteConnection.processOneCommand(ZygoteServer) --> Zygote.forkAndSpecialize --> nativeForkAndSpecialize
 <img width="1137" alt="image" src="https://user-images.githubusercontent.com/49143666/236384045-6732fdb4-0055-4971-ba5f-1972626d2f28.png">
@@ -466,6 +468,7 @@ AMS.startProcessLocked(processName,APplicationInfo, ...) --> ProcessList.startPr
 <img width="1165" alt="image" src="https://user-images.githubusercontent.com/49143666/236384881-48d9f98b-aaa3-47e1-ba65-3c0a73ab3d27.png">
 <img width="1192" alt="image" src="https://user-images.githubusercontent.com/49143666/236385189-6d6c95b5-4f08-4d74-990d-c509127e8cde.png">
 <img width="874" alt="image" src="https://user-images.githubusercontent.com/49143666/236385343-1b3ff7d1-16b6-4146-bdb0-fcdc3b981c20.png">
+
 * zygote fork进程后返回分析
 zygoteConnection.handleChildProc --> ZygoteInit.zygoteInit -->ZygoteInit.nativeZygiteInit( App_main.onZygoteInit() --> ProcessState::self() ) --> RuntimeInit.applicationInit --> 最终执行ActivityThread.main
 <img width="1152" alt="image" src="https://user-images.githubusercontent.com/49143666/236388214-a6c56d7a-7c93-41e7-9fcf-2dc2de22f8e8.png">
@@ -481,10 +484,83 @@ RuntimeInit.applicationInit
 <img width="1171" alt="image" src="https://user-images.githubusercontent.com/49143666/236391418-6d8c583c-f9ea-4d55-adaf-26d769da6d93.png">
 ActivityThread.main的执行, main中调用activityThread.attach 
 <img width="1156" alt="image" src="https://user-images.githubusercontent.com/49143666/236391912-96c8ed0a-3bc6-44e2-872a-e84776bb42fc.png">
+
+* 应用进程启动后，attach的过程
+<img width="979" alt="image" src="https://user-images.githubusercontent.com/49143666/236399383-fc467d29-48e4-43b0-88f2-e1eb546e8347.png">
 attach中调用Ams.attchApplication(ApplicationThread mAppThread, startseq)，传递mAppThread binder给ams
 <img width="1106" alt="image" src="https://user-images.githubusercontent.com/49143666/236397323-2b9a7161-3b34-40cf-a8fc-397eadb5daa8.png">
 <img width="1110" alt="image" src="https://user-images.githubusercontent.com/49143666/236398334-c986e39f-ad48-4ede-9d8f-adf29495ab12.png">
+执行applicationThread.bindApplication（这里夸进程通信了）
+<img width="1088" alt="image" src="https://user-images.githubusercontent.com/49143666/236399614-7f29369d-68af-4e2c-a37e-5f069d31c89d.png">
+<img width="1012" alt="image" src="https://user-images.githubusercontent.com/49143666/236399817-b774d881-c95b-41a9-a36c-29a53ee7157d.png">
+<img width="1164" alt="image" src="https://user-images.githubusercontent.com/49143666/236401164-9d3040d0-8a85-4cad-810d-a192a5e560e3.png">
+<img width="1101" alt="image" src="https://user-images.githubusercontent.com/49143666/236401432-b82eb12b-c134-47e5-8678-096fa1438feb.png">
 
+// 把applicationThread赋值给ProcessThread.applicationThread，这样ams就可以和app通信了(ams是client，app是server)
+<img width="1199" alt="image" src="https://user-images.githubusercontent.com/49143666/236398742-53e5b940-fc4c-48ad-91ea-619cdd71a758.png">
+// ams执行mProcessList.updateLruProcessLocked
+<img width="1146" alt="image" src="https://user-images.githubusercontent.com/49143666/236402065-0d3f4714-9e0c-4cfd-aa4d-1f8694a48d0b.png">
+<img width="1005" alt="image" src="https://user-images.githubusercontent.com/49143666/236402553-21c33618-d117-486e-9f06-5804f1aaaa6d.png">
+启动activity：调用mAtmInternal.attachAPplication
+<img width="1087" alt="image" src="https://user-images.githubusercontent.com/49143666/236402828-c90a1b50-5e9c-4ff5-ab34-ab247b3c4d7c.png">
+<img width="1095" alt="image" src="https://user-images.githubusercontent.com/49143666/236402974-09d9dbe0-9c97-45c8-99a6-50ba110b4173.png">
+<img width="1111" alt="image" src="https://user-images.githubusercontent.com/49143666/236403109-fa3beaab-0dc4-469f-8ee1-6b4bea8d2231.png">
+<img width="1098" alt="image" src="https://user-images.githubusercontent.com/49143666/236403191-106d5028-f981-4741-88d6-5401c3aad58a.png">
+
+##### MainActivity启动流程
+* Activity创建到resume的3个大步骤图
+<img width="839" alt="image" src="https://user-images.githubusercontent.com/49143666/236404480-b86a9775-685b-461a-ba87-4d5160d8260a.png">
+<img width="814" alt="image" src="https://user-images.githubusercontent.com/49143666/236602508-6ee88854-1e1c-4024-8f85-6354cb65c894.png">
+<img width="752" alt="image" src="https://user-images.githubusercontent.com/49143666/236602523-cece8b98-800f-48c9-81fe-e29dcfe5b92e.png">
+
+* ActivityA启动ActivityB总结
+1) 解析ActivityB启动参数
+    ActivityRecord
+2) activityStack ActivityRecord 管理和启动ActivityB
+    activitySupervisor：封装ClientTransaction
+3) 通信流程(AMS -- 应用application)：ClientTransaction
+4) 应用application 处理ActivityB的ClientTransaction
+5) ActivityA的stop
+
+* 第一阶段
+<img width="839" alt="image" src="https://user-images.githubusercontent.com/49143666/236404480-b86a9775-685b-461a-ba87-4d5160d8260a.png">
+
+* 第二阶段
+<img width="837" alt="image" src="https://user-images.githubusercontent.com/49143666/236609579-dd7d069a-d7a0-4afc-a721-f7cdfaef3ab2.png">
+<img width="1159" alt="image" src="https://user-images.githubusercontent.com/49143666/236609722-08495092-4a5a-4a5e-a518-fd60dd0c9445.png">
+
+* 第三阶段(跨进程通信)
+<img width="791" alt="image" src="https://user-images.githubusercontent.com/49143666/236612630-8b81e11e-5f34-41fd-aac0-3e801d7df94c.png">
+<img width="1200" alt="image" src="https://user-images.githubusercontent.com/49143666/236609756-48af0bc2-3269-43d2-8778-295978f74842.png">
+<img width="1073" alt="image" src="https://user-images.githubusercontent.com/49143666/236609869-4823d7dc-414b-4f5d-8499-ca3d7768da2c.png">
+<img width="1155" alt="image" src="https://user-images.githubusercontent.com/49143666/236609936-44bda480-b3b3-4e4b-a87c-01c631fc607b.png">
+<img width="1093" alt="image" src="https://user-images.githubusercontent.com/49143666/236609985-a48b8e8a-8a96-49b7-84a1-0a59b4cf0f08.png">
+<img width="1120" alt="image" src="https://user-images.githubusercontent.com/49143666/236610051-a20b5a32-24b2-4c28-b5f3-8bfe27dec367.png">
+<img width="1113" alt="image" src="https://user-images.githubusercontent.com/49143666/236612278-09718129-ca6a-4596-9453-f2b00699ebb2.png">
+<img width="1107" alt="image" src="https://user-images.githubusercontent.com/49143666/236612683-281a25d2-5afe-4adc-bf6d-e84ca3cdd751.png">
+
+* 第四阶段
+<img width="739" alt="image" src="https://user-images.githubusercontent.com/49143666/236612649-65cd5965-a6f5-4718-8a1c-9449793d1494.png">
+<img width="1222" alt="image" src="https://user-images.githubusercontent.com/49143666/236612875-4ae5afaa-4fd8-4b6a-927e-5b0933317755.png">
+<img width="1175" alt="image" src="https://user-images.githubusercontent.com/49143666/236613009-5a31c51e-4a56-430a-93fc-77f9289dbecc.png">
+<img width="1216" alt="image" src="https://user-images.githubusercontent.com/49143666/236613072-731f05c6-3884-47dc-8d9b-5aba2902b9f2.png">
+<img width="1181" alt="image" src="https://user-images.githubusercontent.com/49143666/236613129-db517e32-47be-4965-8050-93ffb1824b32.png">
+<img width="1132" alt="image" src="https://user-images.githubusercontent.com/49143666/236613149-10e4043a-8d69-4a7a-9da4-a126c3f308d2.png">
+<img width="1205" alt="image" src="https://user-images.githubusercontent.com/49143666/236613221-3c9fc9f4-212b-43f6-bbcc-c2f5ce4babed.png">
+<img width="1199" alt="image" src="https://user-images.githubusercontent.com/49143666/236613316-fc95312c-952c-4192-829c-ff763593b669.png">
+
+然后执行lifcycleState，这个state是resumeItem
+<img width="1183" alt="image" src="https://user-images.githubusercontent.com/49143666/236613437-f9211aa1-0419-423a-8a71-377be647acf3.png">
+之前设置了resume
+<img width="1173" alt="image" src="https://user-images.githubusercontent.com/49143666/236613387-40d2e10e-b68a-423e-9e00-0658396ac0a5.png">
+// 执行resumeItem
+<img width="1183" alt="image" src="https://user-images.githubusercontent.com/49143666/236613478-666a11be-e090-4d5c-8d22-b5c08b1d4abe.png">
+<img width="1185" alt="image" src="https://user-images.githubusercontent.com/49143666/236613589-99e3ddc2-152f-4796-add9-d576ddc146df.png">
+<img width="1209" alt="image" src="https://user-images.githubusercontent.com/49143666/236613671-45b7b64b-45a7-4d02-a4cd-b79c40736aa5.png">
+声明周期执行
+<img width="1188" alt="image" src="https://user-images.githubusercontent.com/49143666/236613764-8be84853-2b33-45e0-a3c8-fa5f7e642a52.png">
+
+* 第五阶段
 
 
 
