@@ -20,6 +20,8 @@
 
 * 堆
 
+##### 常量池
+
 
 #### JVM对象的分配
 * 对象的内存布局
@@ -62,11 +64,15 @@ gcRoots不止这4种(比如还有class对象等)，常见的就是这4种
 <img width="807" alt="image" src="https://user-images.githubusercontent.com/49143666/237012789-d7405a04-ce53-4c21-8576-dbbb00939145.png">
 
 * 标记整理算法：老年代适合，老年代大部分不是垃圾； 先标记，在整理，在清除：整理完了可以一下子整批清除(所以不能先清除在整理)
+<img width="785" alt="image" src="https://user-images.githubusercontent.com/49143666/237032266-65f6e30f-5e93-4403-b246-8b0b7b434d24.png">
 
 ###### 垃圾回收器
 * 常见的垃圾回收器
 <img width="924" alt="image" src="https://user-images.githubusercontent.com/49143666/237013980-d4e59154-63d3-4749-bd29-77cd428441b9.png">
 
 * CMS垃圾回收器：以最短的暂停时间(STW)为优先的
+<img width="900" alt="image" src="https://user-images.githubusercontent.com/49143666/237031772-ec395621-3000-4bfd-84ef-4c7969acb832.png">
+<img width="822" alt="image" src="https://user-images.githubusercontent.com/49143666/237031807-4ce617e0-3504-45ca-b922-34838e82b35a.png">
+
 
 
