@@ -31,9 +31,42 @@
 
 #### JVM垃圾回收
 * 对象存活判定
+gcRoots不止这4种(比如还有class对象等)，常见的就是这4种
 <img width="771" alt="image" src="https://user-images.githubusercontent.com/49143666/236790495-cd241fd1-4861-44c3-a685-3e261d9290b0.png">
+* class对象回收的条件
+<img width="523" alt="image" src="https://user-images.githubusercontent.com/49143666/236794195-3cca7de0-f336-4631-ad0a-f5098661f7af.png">
+
+* 引用
+虚引用例子
+<img width="740" alt="image" src="https://user-images.githubusercontent.com/49143666/236800412-592e4ab7-9672-4eba-8d54-2a4f7553d918.png">
+<img width="680" alt="image" src="https://user-images.githubusercontent.com/49143666/236800477-9627d956-4220-4d3b-9cb4-4d621d9bc73e.png">
+
+* 对象的分配策略
+<img width="897" alt="image" src="https://user-images.githubusercontent.com/49143666/237001162-8cacc321-8012-4105-bc28-a8f903c14b57.png">
+
+* JIT即时编译和对象逃逸分析
+所以并不是所有的对象都在堆上分配(几乎所有的对象都在堆上分配)
+<img width="678" alt="image" src="https://user-images.githubusercontent.com/49143666/237003117-ebe95441-39b7-4256-96c9-fa5e8dd52fed.png">
+
+* 垃圾回收
+<img width="784" alt="image" src="https://user-images.githubusercontent.com/49143666/237006577-dae301c2-f5ea-4eed-986d-a3d74854521d.png">
+
+###### 垃圾回收算法
+* 复制算法：新生代适合，新生代大部分都是垃圾
+<img width="816" alt="image" src="https://user-images.githubusercontent.com/49143666/237010390-b895ea02-9756-494a-8881-77c4078227e1.png">
+* 优化版的复制算法：垃圾占90%，不过有的垃圾回收器是动态调整各区域大小的(比如Parallel Scavenge回收器)
+空间利用率只有一半，因此引入了s0和s1去(from和to)，Eden：from：to = 8:1:1，空间利用率为90%。对象在eden区中分配，存活对象会去交换区中的一个
+<img width="905" alt="image" src="https://user-images.githubusercontent.com/49143666/237011426-fff21b1c-1be2-47f9-add6-ac9a4fc049bc.png">
+
+* 标记清除算法 ：老年代适合，老年代大部分不是垃圾
+<img width="807" alt="image" src="https://user-images.githubusercontent.com/49143666/237012789-d7405a04-ce53-4c21-8576-dbbb00939145.png">
+
+* 标记整理算法：老年代适合，老年代大部分不是垃圾； 先标记，在整理，在清除：整理完了可以一下子整批清除(所以不能先清除在整理)
+
+###### 垃圾回收器
+* 常见的垃圾回收器
+<img width="924" alt="image" src="https://user-images.githubusercontent.com/49143666/237013980-d4e59154-63d3-4749-bd29-77cd428441b9.png">
+
+* CMS垃圾回收器：以最短的暂停时间(STW)为优先的
 
 
-* 对象自我拯救
-
-* 
