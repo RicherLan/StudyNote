@@ -747,8 +747,57 @@ android Application对象和多进程关系
 多进程需要注意：由于Application的相关方法会被执行多次，因此一些功能的初始化方法要确保只调用一次。
 
 
-
-ContentProvider
+                                               
+## 进程间安全的方法
+* (进程间安全的文章)[https://developer.aliyun.com/article/951669]
+1. 一个进程里面的时候，经常采用SharePreference来做，但是SharePreference不支持多进程，它基于单个文件的，默认是没有考虑同步互斥，而且，APP对SP对象做了缓存，不好互斥同步，虽然可以通过FileLock来实现互斥，但同步仍然是一个问题。FileLock是基于linux的fcntl实现的
+2. 基于Binder通信实现Service完成跨进程数据的共享，能够保证单进程访问数据，不会有互斥问题，可是同步的事情仍然需要开发者手动处理。
+3. 基于Android提供的ContentProvider来实现，ContentProvider同样基于Binder，不存在进程间互斥问题，对于同步，也做了很好的封装，不需要开发者额外实现。
+#### 简单实现进程间互斥的方法：文件锁
+创建一个锁文件是非常简单的，我们可以使用open系统调用来创建一个锁文件，在调用open时oflags参数要增加参数O_CREAT和O_EXCL标志，如file_desc = open("/tmp/LCK.test", O_RDWR|O_CREAT|O_EXCL, 0444);就可以创建一个锁文件/tmp/LCK.test。O_CREAT|O_EXCL，可以确保调用者可以创建出文件，使用这个模式可以防止两个程序同时创建同一个文件，如果文件（/tmp/LCK.test）已经存在，则open调用就会失败，返回-1。
+如果一个程序在它执行时，只需要独占某个资源一段很短的时间，这个时间段（或代码区）通常被叫做临界区，我们需要在进入临界区之前使用open系统调用创建锁文件，然后在退出临界区时用unlink系统调用删除这个锁文件。
+注意：锁文件只是充当一个指示器的角色，程序间需要通过相互协作来使用它们，也就是说锁文件只是建议锁，而不是强制锁，并不会真正阻止你读写文件中的数据。
+可以看看下面的例子：源文件文件名为filelock1.c，代码如下：
+```c
+#include <unistd.h>  
+#include <stdlib.h>  
+#include <stdio.h>  
+#include <fcntl.h>  
+#include <errno.h>  
+  
+int main()  
+{  
+    const char *lock_file = "/tmp/LCK.test1";  
+    int n_fd = -1;  
+    int n_tries = 10;  
+  
+    while(n_tries--)  
+    {  
+        //创建锁文件  
+        n_fd = open(lock_file, O_RDWR|O_CREAT|O_EXCL, 0444);  
+        if(n_fd == -1)  
+        {  
+            //创建失败  
+            printf("%d - Lock already present\n", getpid());  
+            sleep(2);  
+        }  
+        else  
+        {                      
+            //创建成功  
+            printf("%d - I have exclusive access\n", getpid());  
+            sleep(1);  
+            close(n_fd);  
+            //删除锁文件，释放锁  
+            unlink(lock_file);  
+            sleep(2);  
+        }  
+    }  
+    return 0;  
+}  
+```
+                                               
+                                               
+## ContentProvider
 简单介绍的文章：https://blog.csdn.net/carson_ho/article/details/76101093
     定义：内容提供者，是android四大组建之一
     作用：进程间进行数据交互 & 共享，即夸进程通信
