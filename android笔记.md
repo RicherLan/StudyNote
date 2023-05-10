@@ -275,6 +275,9 @@ public class MyApplication extends Application {
 #### 插桩robust
 
 
+## Binder
+(介绍)[https://juejin.cn/post/6918615395498885134]
+
 ## Android启动流程(源码基于sdk30)
 <img width="842" alt="image" src="https://user-images.githubusercontent.com/49143666/231740244-9ec3b3b2-dea5-4411-b201-c92455319159.png">
 <img width="499" alt="image" src="https://user-images.githubusercontent.com/49143666/234188880-92a6d8e7-186a-4d94-81b5-259029f765e7.png">
@@ -302,6 +305,7 @@ public class MyApplication extends Application {
 6. 循环等待
 
 ##### zygote进程
+(Zygote通信为什么用Socket，而不是Binder?)[https://www.jianshu.com/p/cfc0adc55911]
 ##### zygote工作内容
 <img width="1023" alt="image" src="https://user-images.githubusercontent.com/49143666/234255397-fec29005-1c3f-4396-9560-fd6185477caa.png">
 
