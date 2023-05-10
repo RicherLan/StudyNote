@@ -9,9 +9,12 @@ suspend和stop弃用原因：
 比如：线程A的逻辑是转账（获得锁，1号账户减少100元，2号账户增加100元，释放锁），那线程A刚执行到1号账户减少100元就被调用了stop方法，释放了锁资源，释放了CPU资源。1号账户平白无故少了100元。一场撕逼大战开始了。
 
 
-#### thread.join
-
-
+#### thread.join()
+在很多情况下，主线程创建并启动子线程，如果子线程中要进行大量的耗时运算，主线程将可能早于子线程结束。如果主线程需要知道子线程的执行结果时，就需要等待子线程执行结束了。主线程可以sleep(xx),但这样的xx时间不好确定，因为子线程的执行时间不确定，join()方法比较合适这个场景。
+<img width="665" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/71b9671b-e7fb-452a-b823-25147113c80b">
+<img width="799" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/6da35c25-81e4-41c8-aa8d-eda586e2e620">
+<img width="676" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/f64da8c0-1441-4134-a8a5-48e16eef4b81">
+Join方法实现是通过wait（小提示：Object 提供的方法）。 当main线程调用t.join时候，main线程会获得线程对象t的锁（wait 意味着拿到该对象的锁),调用该对象的wait(等待时间)，直到该对象唤醒main线程 ，比如退出后。这就意味着main 线程调用t.join时，必须能够拿到线程t对象的锁。
 
 
 Thread.interrupt方法，在线程wait、sleep等时，会抛出interruptedException异常 且 会把中断标记位重新置为false(方案：可以在catch内在调用intercept())
