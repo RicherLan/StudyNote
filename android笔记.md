@@ -348,6 +348,131 @@ threadLocal释放value是有问题的，如果使用不当，很容易内存泄�
 我觉得的一个点是，threadLocalMap的hash方式是开放地址法，可以节省空间，但感觉这并不是主要原因
 
 
+## Android虚拟机
+* (虚拟机（Dalvik、ART）)[https://juejin.cn/post/6961611061229256712]
+* java虚拟机的指令集是基于堆栈的，Dalvik的指令集是基于寄存器的
+(两者区别)[https://blog.csdn.net/yunxing323/article/details/109407969]
+
+
+* 基于栈的虚拟机
+<img width="858" alt="image" src="https://user-images.githubusercontent.com/49143666/237047455-f57c5429-909f-40b8-9e0a-433f544e0268.png">
+<img width="621" alt="image" src="https://user-images.githubusercontent.com/49143666/237049887-8d5bfb03-abb8-447b-82fe-ae0549090249.png">
+
+* 基于寄存器的虚拟机：Dalvik、ART
+<img width="810" alt="image" src="https://user-images.githubusercontent.com/49143666/237049962-fc8aefeb-35c2-43c9-a175-451c99868647.png">
+
+#### Dalvik、ART的区别
+<img width="859" alt="image" src="https://user-images.githubusercontent.com/49143666/237054218-5c4c9331-1192-4cea-bc20-9b542af9d270.png">
+* 那么ART执行的机器码从哪里来呢？ dex2AOT， 这样安装的过程会很慢
+<img width="846" alt="image" src="https://user-images.githubusercontent.com/49143666/237055074-a17daa68-9fa9-4570-88ec-0b91f7b33a2f.png">
+* Android N ART虚拟机的混合模式
+<img width="843" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/24e5e1fa-0be3-46a3-ac26-554bb71d8741">
+
+
+## android类加载
+<img width="719" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/7c7bbf59-2231-4400-8b35-1e8383926939">
+* 双亲委托机制
+<img width="749" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/f3fbdb19-e405-4c4b-90a0-df6c4ab6080d">
+
+#### 类加载器
+* PathClassLoader： extends BaseDexClassLoader extends ClassLoader
+<img width="1119" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/ff63fd00-74ba-43dc-9095-5f767c19fb7d">
+loadClass方法在抽象类ClassLoader中，
+<img width="938" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/15a4285b-10cf-40ec-8453-14ca1a298810">
+findClass在BaseDexClassLoader中
+<img width="806" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/fab4265a-1279-4a97-ad70-6ec7b4f6b833">
+
+* BootClassLoader : extends BuiltinClassLoader extends SecureClassLoader extends ClassLoader
+
+* DexPathList
+在构造函数的时候，会加载所有的dex文件，封装成Element[]
+<img width="823" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/2d2e45a2-5ca7-43d4-bf5c-c9cfb60cb490">
+<img width="820" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/c03c20f4-5f19-4a5a-af4a-04777bde49ae">
+<img width="1071" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/06851ec3-703e-4a25-9ed7-291d3b3c664b">
+<img width="1008" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/86f7ccab-8fbf-4771-85a1-cf3fc63c8b7e">
+
+一个dex对应一个Element
+<img width="843" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/45b8f90e-12df-41f6-8ac0-af6332c853cf">
+<img width="843" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/3e06eaa0-ddc2-4ad4-86c0-e014940db6f3">
+
+findClass方法
+<img width="844" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/d8b9d43e-2b66-4519-b784-1d6589d9a247">
+
+## 热修复
+#### 基于android类加载机制的热修复
+(我的github项目)https://github.com/BeggarLan/ClassReplaceHotfix/blob/master/app/src/main/java/com/beggar/classreplacehotfix/MyApplication.java
+* 打dex命令：执行dx --dex --output=haha.dex xx/xx/xx/A.class， dx工具在sdk目录下的buildtool目录中
+```java
+/**
+ * author: lanweihua
+ * created on: 2022/12/8 11:05 下午
+ * description:
+ */
+public class MyApplication extends Application {
+
+  @Override
+  protected void attachBaseContext(Context base) {
+    super.attachBaseContext(base);
+    File file = new File("/data/data/com.beggar.classreplacehotfix/files/patch.dex");
+    boolean is = file.exists();
+    loadPatch();
+  }
+
+
+  void loadPatch() {
+    try {
+      // patch的
+      String patchFilePath = "/data/data/com.beggar.classreplacehotfix/files/patch.dex";
+      DexClassLoader patchDexClassLoader =
+          new DexClassLoader(patchFilePath, getCacheDir().getAbsolutePath(), null, null);
+      Object[] patchDexElements = (Object[]) getDexElements(patchDexClassLoader);
+
+
+      // 应用本身的
+      ClassLoader classLoader = getClassLoader();
+      Object[] dexElements = (Object[]) getDexElements(classLoader);
+
+      // patch和应用本身合并，patch的dex放前面
+      Object[] newDexElements =
+          (Object[]) Array.newInstance(dexElements.getClass().getComponentType(),
+              patchDexElements.length + dexElements.length);
+      System.arraycopy(patchDexElements, 0, newDexElements, 0, patchDexElements.length);
+      System.arraycopy(dexElements, 0, newDexElements, patchDexElements.length, dexElements.length);
+
+      // 应用本身的类加载器中的dex目录替换
+      Field pathListField =  Class.forName("dalvik.system.BaseDexClassLoader").getDeclaredField("pathList");
+      pathListField.setAccessible(true);
+      Object pathList = pathListField.get(classLoader);
+      Field dexElementsField = pathList.getClass().getDeclaredField("dexElements");
+      // 把pathList的dexElements替换成新的
+      dexElementsField.setAccessible(true);
+      dexElementsField.set(pathList, newDexElements);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  private Object getDexElements(ClassLoader classLoader) {
+    try {
+      Field pathListField = Class.forName("dalvik.system.BaseDexClassLoader").getDeclaredField("pathList");
+      pathListField.setAccessible(true);
+      Object pathList = pathListField.get(classLoader);
+
+      Field dexElementsField = pathList.getClass().getDeclaredField("dexElements");
+      dexElementsField.setAccessible(true);
+      Object dexElements = dexElementsField.get(pathList);
+      return dexElements;
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    return null;
+  }
+}
+```
+
+#### 插桩robust
+
 
 ## Android启动流程(源码基于sdk30)
 <img width="842" alt="image" src="https://user-images.githubusercontent.com/49143666/231740244-9ec3b3b2-dea5-4411-b201-c92455319159.png">
