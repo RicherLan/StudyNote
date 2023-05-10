@@ -11,6 +11,9 @@ suspend和stop弃用原因：
 
 #### thread.join
 
+
+
+
 Thread.interrupt方法，在线程wait、sleep等时，会抛出interruptedException异常 且 会把中断标记位重新置为false(方案：可以在catch内在调用intercept())
 处于死锁状态时，不会理会中断
 
