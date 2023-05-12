@@ -1,12 +1,10 @@
 # 杂知识
 * 一些项目技术:https://mp.weixin.qq.com/s/_Ox67FpVi1P032EWyRlZXA
 * 代码整洁之道书：https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
-* ios memory deep dive
 
 
 # 设计架构：
 * clean architecture:https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
-* 小明的mvvm：https://docs.corp.kuaishou.com/k/home/VM1xCx-qw9pA/fcAAOkWDwpwUcfS95pLdkZDq8
 
 # android技术知识：
 * view点击事件分发：https://www.jianshu.com/p/38015afcdb58
