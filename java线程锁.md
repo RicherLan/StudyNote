@@ -154,6 +154,7 @@ public class MarkThreadTest {
 (信号量和管程)[https://www.cnblogs.com/binarylei/p/12544002.html]
 
 ## synchronized：https://juejin.cn/post/6888137809929093133
+
 偏向锁为啥废弃，谈谈Java Synchronized 的锁机制，以及管程：https://cloud.tencent.com/developer/article/1759559
 轻量级锁、锁升级：https://bbs.huaweicloud.com/blogs/335820
 
@@ -184,7 +185,7 @@ JIT 编译器动态编译时，如果发现几个相邻的同步块使用的是�
 * 总结
 其实现在 Synchronized 的性能并不差，偏向锁、轻量级锁并不会从用户态到内核态的切换；只有在竞争十分激烈的时候，才会升级到重量级锁。
 Synchronized 的锁是由 JVM 实现的。
-偏向锁已经被废弃了。
+偏向锁在jdk15已经被废弃了。
 
 ## aqs
 https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
@@ -234,6 +235,11 @@ class AbstractQueuedSynchronizer {
     }
     return setInitialValue();
 }
+
+ThreadLocalMap getMap(Thread t) {
+        return t.threadLocals;
+}
+
 // 每个线程内部都有ThreadLocalMap成员
 static class ThreadLocalMap {
     /**
