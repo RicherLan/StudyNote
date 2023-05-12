@@ -148,8 +148,8 @@ public class MarkThreadTest {
 ```
 
 
-## 管程
-指的是管理共享变量以及共享变量的操作过程，让它们支持并发。
+## 信号量和管程
+(信号量和管程)[https://www.cnblogs.com/binarylei/p/12544002.html]
 
 ## synchronized：https://juejin.cn/post/6888137809929093133
 偏向锁为啥废弃，谈谈Java Synchronized 的锁机制，以及管程：https://cloud.tencent.com/developer/article/1759559
