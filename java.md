@@ -260,7 +260,19 @@ final Node<K,V> getNode(int hash, Object key) {
 }
 ```
 
+## Collections.synchronizedMap
+```java
+public static <K,V> Map<K,V> synchronizedMap(Map<K,V> m) {
+        return new SynchronizedMap<>(m);
+}
+```
+方法都加了synchronized
+<img width="1104" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/22090228-3316-40f5-b3bb-9836a9058965">
+
 ## ConcurrentHashMap
+(jdk1.7和jdk1.8)[https://juejin.cn/post/7064061605185028110]
+* 1.8采用cas和synchronized，put方法为例子：
+<img width="1097" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/e8507629-b72d-48bc-9ca2-89b05433a1a9">
 
 
 
