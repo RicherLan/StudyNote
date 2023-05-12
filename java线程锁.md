@@ -20,7 +20,6 @@ Join方法实现是通过wait（小提示：Object 提供的方法）。 当main
 在线程wait、sleep等时，会抛出interruptedException异常 且 会把中断标记位重新置为false(方案：可以在catch内在调用intercept())
 处于死锁状态时，不会理会中断
 
-
 #### volatile
 一写多读的场景适合用volatile
 
@@ -42,6 +41,111 @@ public void fun2() {
         ...
     }
 }
+
+#### 如何优雅的终止一个线程
+对于 Java 而言，最正确的停止线程的方式是使用 interrupt。但 interrupt 仅仅起到通知被停止线程的作用。而对于被停止的线程而言，它拥有完全的自主权，它既可以选择立即停止，也可以选择一段时间后停止，也可以选择压根不停止。可能很多同学会疑惑，既然这样那这个存在的意义有什么尼，其实对于 Java 而言，期望程序之间是能够相互通知、协作的管理线程
+* interrupt 停止线程
+核心就是通过调用线程的 isInterrupt() 方法进而判断中断信号，当线程检测到为 true 时则说明接收到终止信号，此时我们需要做相应的处理。
+```java
+ Thread thread = new Thread(() -> {
+            while (true) {
+                //判断当前线程是否中断，
+                if (Thread.currentThread().isInterrupted()) {
+                    System.out.println("线程1 接收到中断信息，中断线程...中断标记：" + Thread.currentThread().isInterrupted());
+                    //跳出循环，结束线程
+                    break;
+                }
+                System.out.println(Thread.currentThread().getName() + "线程正在执行...");
+
+            }
+        }, "interrupt-1");
+        //启动线程 1
+        thread.start();
+
+        //创建 interrupt-2 线程
+        new Thread(() -> {
+            int i = 0;
+            while (i <20){
+                System.out.println(Thread.currentThread().getName()+"线程正在执行...");
+                if (i == 8){
+                    System.out.println("设置线程中断...." );
+                    //通知线程1 设置中断通知
+                    thread.interrupt();
+
+                }
+                i ++;
+                try {
+                    TimeUnit.MILLISECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"interrupt-2").start();
+```
+当处于 sleep 或者wait时
+```java
+        //创建 interrupt-1 线程
+
+        Thread thread = new Thread(() -> {
+            while (true) {
+                //判断当前线程是否中断，
+                if (Thread.currentThread().isInterrupted()) {
+                    System.out.println("线程1 接收到中断信息，中断线程...中断标记：" + Thread.currentThread().isInterrupted());
+                    Thread.interrupted(); // //对线程进行复位，由 true 变成 false
+                    System.out.println("经过 Thread.interrupted() 复位后，中断标记：" + Thread.currentThread().isInterrupted());
+
+                    //再次判断是否中断，如果是则退出线程
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    break;
+                }
+                System.out.println(Thread.currentThread().getName() + "线程正在执行...");
+                try {
+                    TimeUnit.SECONDS.sleep(5);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }, "interrupt-1");
+```
+我们执行修改后的代码，发现如果 sleep、wait 等可以让线程进入阻塞的方法使线程休眠了，而处于休眠中的线程被中断，那么线程是可以感受到中断信号的，并且会抛出一个 InterruptedException 异常，同时清除中断信号，将中断标记位设置成 false。这样一来就不用担心长时间休眠中线程感受不到中断了，因为即便线程还在休眠，仍然能够响应中断通知，并抛出异常。
+
+对于线程的停止，最优雅的方式就是通过 interrupt 的方式来实现，关于他的详细文章看之前文章即可，如 InterruptedException 时，再次中断设置，让程序能后续继续进行终止操作。不过对于 interrupt 实现线程的终止在实际开发中发现使用的并不是很多，很多都可能喜欢另一种方式，通过标记位。
+
+* 用 volatile 标记位的停止方法，但是线程在wait或者sleep时就不适应了。
+```java
+public class MarkThreadTest {
+
+    //定义标记为 使用 volatile 修饰
+    private static volatile  boolean mark = false;
+
+    @Test
+    public void markTest(){
+        new Thread(() -> {
+            //判断标记位来确定是否继续进行
+            while (!mark){
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("线程执行内容中...");
+            }
+        }).start();
+
+        System.out.println("这是主线程走起...");
+        try {
+            TimeUnit.SECONDS.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        //10秒后将标记为设置 true 对线程可见。用volatile 修饰
+        mark = true;
+        System.out.println("标记位修改为："+mark);
+    }
+}
+```
 
 
 ## 管程
