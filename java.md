@@ -187,8 +187,45 @@ static int indexFor(int h, int length) {  //jdk1.7的源码，jdk1.8没有这个
 }
 ```
 
-#### 扩容
-JDK1.8做了哪些优化。经过观测可以发现，我们使用的是2次幂的扩展(指长度扩为原来2倍)，所以，元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置。看下图可以明白这句话的意思，n为table的长度，图（a）表示扩容前的key1和key2两种key确定索引位置的示例，图（b）表示扩容后key1和key2两种key确定索引位置的示例，其中hash1是key1对应的哈希与高位运算结果
+#### 扩容（JDK1.7，鉴于JDK1.8融入了红黑树，较复杂，为了便于理解我们仍然使用JDK1.7的代码，好理解一些，本质上区别不大）
+```java
+// newTable[i]的引用赋给了e.next，也就是使用了单链表的头插入方式，同一位置上新元素总会被放在链表的头部位置；这样先放在一个索引上的元素终会被放到Entry链的尾部(如果发生了hash冲突的话），这一点和Jdk1.8有区别，下文详解。在旧数组中同一条Entry链上的元素，通过重新计算索引位置后，有可能被放到了新数组的不同位置上。
+1 void resize(int newCapacity) {   //传入新的容量
+ 2     Entry[] oldTable = table;    //引用扩容前的Entry数组
+ 3     int oldCapacity = oldTable.length;         
+ 4     if (oldCapacity == MAXIMUM_CAPACITY) {  //扩容前的数组大小如果已经达到最大(2^30)了
+ 5         threshold = Integer.MAX_VALUE; //修改阈值为int的最大值(2^31-1)，这样以后就不会扩容了
+ 6         return;
+ 7     }
+ 8  
+ 9     Entry[] newTable = new Entry[newCapacity];  //初始化一个新的Entry数组
+10     transfer(newTable);                         //！！将数据转移到新的Entry数组里
+11     table = newTable;                           //HashMap的table属性引用新的Entry数组
+12     threshold = (int)(newCapacity * loadFactor);//修改阈值
+13 }
+
+ 1 void transfer(Entry[] newTable) {
+ 2     Entry[] src = table;                   //src引用了旧的Entry数组
+ 3     int newCapacity = newTable.length;
+ 4     for (int j = 0; j < src.length; j++) { //遍历旧的Entry数组
+ 5         Entry<K,V> e = src[j];             //取得旧Entry数组的每个元素
+ 6         if (e != null) {
+ 7             src[j] = null;//释放旧Entry数组的对象引用（for循环后，旧的Entry数组不再引用任何对象）
+ 8             do {
+ 9                 Entry<K,V> next = e.next;
+10                 int i = indexFor(e.hash, newCapacity); //！！重新计算每个元素在数组中的位置
+11                 e.next = newTable[i]; //标记[1]
+12                 newTable[i] = e;      //将元素放在数组上
+13                 e = next;             //访问下一个Entry链上的元素
+14             } while (e != null);
+15         }
+16     }
+17 }
+```
+
+
+* JDK1.8做了哪些优化。
+经过观测可以发现，我们使用的是2次幂的扩展(指长度扩为原来2倍)，所以，元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置。看下图可以明白这句话的意思，n为table的长度，图（a）表示扩容前的key1和key2两种key确定索引位置的示例，图（b）表示扩容后key1和key2两种key确定索引位置的示例，其中hash1是key1对应的哈希与高位运算结果
 ![image](https://github.com/BeggarLan/StudyNote/assets/49143666/486d4095-d618-4624-9ab0-69092bc4dd46)
 元素在重新计算hash之后，因为n变为2倍，那么n-1的mask范围在高位多1bit(红色)，因此新的index就会发生这样的变化：
 ![image](https://github.com/BeggarLan/StudyNote/assets/49143666/a3104081-4aa5-4c87-8642-caebb09fe5b5)
