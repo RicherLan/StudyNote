@@ -25,6 +25,7 @@ Join方法实现是通过wait（小提示：Object 提供的方法）。 当main
 
 #### notifyAll
 // notifyAll()写在这两个地方没有区别，notifyAll会通知wait的那些线程进就绪，等notifyAll所在的synchronized块执行完了后，wait的那些线程才会去执行
+```java
 public void fun() {
     synchronized(this) {
         ....
@@ -41,6 +42,7 @@ public void fun2() {
         ...
     }
 }
+```
 
 #### 如何优雅的终止一个线程
 对于 Java 而言，最正确的停止线程的方式是使用 interrupt。但 interrupt 仅仅起到通知被停止线程的作用。而对于被停止的线程而言，它拥有完全的自主权，它既可以选择立即停止，也可以选择一段时间后停止，也可以选择压根不停止。可能很多同学会疑惑，既然这样那这个存在的意义有什么尼，其实对于 Java 而言，期望程序之间是能够相互通知、协作的管理线程
@@ -189,6 +191,7 @@ https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
 https://xie.infoq.cn/article/0223d5e5f19726b36b084b10d
 
 比如线程加入等待队列的时候，需要把tail尾节点设置成当前节点，设置方法：
+```java
 class AbstractQueuedSynchronizer {
     private transient volatile Node tail;
     static {
@@ -200,6 +203,7 @@ class AbstractQueuedSynchronizer {
         return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
     }
 }
+```
 
 #### java.util.concurrent中对aqs的应用场景：
 * ReentrantLock	        使用AQS保存锁重复持有的次数。当一个线程获取锁时，ReentrantLock记录当前获得锁的线程标识，用于检测是否重复获取，以及错误线程试图解锁操作时异常情况的处理。
@@ -269,15 +273,16 @@ static class ThreadLocalMap {
 ThreadLocal的原理和内存泄露分析：https://juejin.cn/post/7091649401629704223
 内存泄漏源码分析https://www.jianshu.com/p/dde92ec37bd1
 
-ThreadLocalMap 中的 key 使用了弱引用，会导致 value 出现内存泄漏。
+* ThreadLocalMap 中的 key 使用了弱引用，会导致 value 出现内存泄漏。
 case： 假设在业务代码中使用完 ThreadLocal，threadLocalRef 被回收了
     由于 ThreadLocalMap 只持有 ThreadLocal 的弱引用，没有任何强引用指向 threadlocal 实例，所以 threadlocal 就可以顺利被 GC 回收，此时 Entry 中的 key = null
     在没有手动删除这个 Entry 以及 CurrentThread 依然运行的前提下，也存在有强引用链 threadRef -> currentThread -> threadLocalMap -> entry -> value，value 不会被回收，而这块 value 永远不会被访问到了，导致 value 内存泄漏
 导致内存泄漏的原因
     1. 没有手动删除相应的 Entry 对象
     2. 当前线程依然在运行
-如何解决内存泄露
+* 如何解决内存泄露
     1. 使用完 ThreadLocal，调用其 remove 方法删除对应的 Entry
+        ```java
         class ThreadLocal {
              public void remove() {
                 ThreadLocalMap m = getMap(Thread.currentThread());
@@ -301,6 +306,7 @@ case： 假设在业务代码中使用完 ThreadLocal，threadLocalRef 被回收
                 }
             }
         }
+        ```
     2. 使用完 ThreadLocal，当前 Thread 也随之运行结束（不好控制，线程池中的核心线程不会销毁）
 
 #### 延伸：
