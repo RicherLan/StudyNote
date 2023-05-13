@@ -454,12 +454,13 @@ Activity的onResume
 ## Activity的启动模式
 
 
-## handler
+## Handler
 java层和native层的文章：https://juejin.cn/post/6973142800808280071
 
 堵塞和唤醒的时机：https://blog.csdn.net/ajsliu1233/article/details/124629486
 
-2种构造方法
+#### 2种构造方法
+```java
 1. public Handler(@NonNull Looper looper)
    public Handler(@NonNull Looper looper, @Nullable Callback callback)
    public Handler(@NonNull Looper looper, @Nullable Callback callback, boolean async)
@@ -476,12 +477,13 @@ java层和native层的文章：https://juejin.cn/post/6973142800808280071
         mCallback = callback;
         mAsynchronous = async;
     }
-
-内存泄漏：
+```
+#### 内存泄漏：
 1. handler一般是匿名内部类(持有外部类引用)，然后Message持有handler(msg.target = handler), 然后mq持有了msg，looper持有了mq，looper被thread.threadLocalMap.table[i].value引用
 2. handle.post(Runnable) ，runnable也是匿名内部类(持有外部类引用)，被封装成msg，然后mq持有了msg，looper持有了mq，
     sThreadLocal.set(new Looper)中把looper存到了ThreadLocalMap.table中，thread.threadLocalMap.table(持有了looper,Entry是extends WeakReference<ThreadLocal<?>>，但是entry的value(looper)还是强引用
 3. Looper中static Looper sMainLooper; // 因此Looper.sMainLooper也是gcroot
+   ```java
     public static void prepareMainLooper() {
         prepare(false);
         synchronized (Looper.class) {
@@ -491,14 +493,16 @@ java层和native层的文章：https://juejin.cn/post/6973142800808280071
             sMainLooper = myLooper();
         }
     }
+   ```
 loop函数中msg处理完后会调用msg.recycleUnchecked()，这里target、callback等全部置空
 
 handler的postDelay,最后执行的是sendMessageAtTime, time是SystemClock.uptimeMillis() + delayMillis,为啥不直接传递delayTime，而是传递一个时间呢
 1. 排序
 2. 有底层调用，下面的需要delay时间的话，会用这个提前算出来的减去当前时间
 
-Message
+#### Message
 采用享元设计模式(缓存复用)
+```java
 class Message {
     // 锁
     public static final Object sPoolSync = new Object();
@@ -508,12 +512,14 @@ class Message {
     // 复用池大小是50
     private static final int MAX_POOL_SIZE = 50;
 }
+```
 为啥不new，而是用obtain从pool中获取呢？
 1. 60hz时，16.7ms就会发送3个消息：msg、内存屏障、移除内存屏障；
    频繁的new message， 如果没有消息复用机制的话内存抖动会明显，且STW(Stop the world，为了保证gc的执行会短暂暂停业务线程)
 2. 频繁的new message, 很容易出现很多的内存碎片，容易出现oom
 
-Looper：
+#### Looper：
+```java
 static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<Looper>();
 // prepare中创建了Looper对象并添加到sThreadLocal
 public static void prepare() {
@@ -531,16 +537,17 @@ private Looper(boolean quitAllowed) {
         mQueue = new MessageQueue(quitAllowed);
         mThread = Thread.currentThread();
 }
+```java
 
-MessageQueue
-多线程间共享
-不同的线程通过handler塞消息，那是如何保证线程安全的？
-    enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
-    next()函数也是synchronized (this)，因此取消息也涉及到链表的删除(尽管next只在looper运行所在的线程执行)
-cpp层代码：https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/android_os_MessageQueue.cpp;l=188;drc=master
+#### MessageQueue
+* 多线程间共享
+* 不同的线程通过handler塞消息，那是如何保证线程安全的？
+    1. enqueueMessage(msg, timeMs)，内部都是synchronized (this)的
+    2. next()函数也是synchronized (this)，因此取消息也涉及到链表的删除(尽管next只在looper运行所在的线程执行)
+* cpp层代码：https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/android_os_MessageQueue.cpp;l=188;drc=master
 
 
-native层hanler文章：https://juejin.cn/post/7146239048191836190
+#### native层hanler文章：https://juejin.cn/post/7146239048191836190
 1. 堵塞唤醒机制为啥不用wait和notify()
  回答：wait和notify是java层的机制，c/c++层的开发者也需要handler这一套机制
 2. 为啥使用的是epoll + eventfd，而不是pipe管道呢
@@ -553,12 +560,13 @@ native层hanler文章：https://juejin.cn/post/7146239048191836190
     eventfd配合epoll才是它存在的原
 
 
-IdleHandler
-是MessageQueue的静态内部类
+#### IdleHandler
+* 是MessageQueue的静态内部类
 https://zhuanlan.zhihu.com/p/345819916
 https://juejin.cn/post/6844904068129751047
-执行的时机：messageQueue取消息的时候(next()函数), 没有msg或者取出的msg的执行时间大于当前时间的时候，就会遍历执行所有的idleHandler，执行完后返回next()中的for(;;)循环继续取消息
-代码:
+* 执行的时机：messageQueue取消息的时候(next()函数), 没有msg或者取出的msg的执行时间大于当前时间的时候，就会遍历执行所有的idleHandler，执行完后返回next()中的for(;;)循环继续取消息
+* 代码:
+```java
 Message next() {
     int pendingIdleHandlerCount = -1; // -1 only during first iteration
     int nextPollTimeoutMillis = 0;
@@ -604,13 +612,14 @@ Message next() {
         nextPollTimeoutMillis = 0;
     }
 }
-执行总结：
+```
+* 执行总结：
 1. 在 MessageQueue 里 next 方法的 for 死循环内，获取 mIdleHandlers 的数量 pendingIdleHandlerCount；
 2. 通过 mMessages == null || now < mMessages.when 判断当前消息队列为空或者目前没有需要执行的消息时，给 pendingIdleHandlerCount 赋值；
 3. 当数量大于 0，遍历取出数组内的 IdleHandler，执行 queueIdle() ；
 4. 返回值为 false 时，主动移除监听 mIdleHandlers.remove(idler) ；
 
-使用场景：耗时短、不紧急的事情处理
+* 使用场景：耗时短、不紧急的事情处理
 1. 如果启动的 Activity、Fragment、Dialog 内含有大量数据和视图的加载，导致首次打开时动画切换卡顿或者一瞬间白屏，可将部分加载逻辑放到 queueIdle() 内处理。例如引导图的加载和弹窗提示等；
 2. 系统源码中 ActivityThread 的 GcIdler，在某些场景等待消息队列暂时空闲时会尝试执行 GC 操作；
 3. 系统源码中  ActivityThread 的 Idler，在 handleResumeActivity() 方法内会注册 Idler()，等待 handleResumeActivity 后视图绘制完成，消息队列暂时空闲时再调用 AMS 的 activityIdle 方法，检查页面的生命周期状态，触发 activity 的 stop 生命周期等。这也是为什么我们 BActivity 跳转 CActivity 时，BActivity 生命周期的 onStop() 会在 CActivity 的 onResume() 后。
@@ -618,12 +627,13 @@ Message next() {
 
 
 
-HandlerThread 
+## HandlerThread 
     HandlerThread extends Thread
 // ***************************************** 
 handlerThread怎么解决多线程问题的? 
 case：主线程new了一个HandlerThread，然后调用start，然后紧接着new Hander(handlerThread.getLooper())，这里由于cpu时间片的原因，handlerThread的looper对象可能还没执行
 ps：
+```java
 public void run() {
     ...
     Looper.prepare();
@@ -662,15 +672,9 @@ public Looper getLooper() {
     return mLooper;
 }
 // ***************************************** 
+```
 
-
-
-okhttp：https://juejin.cn/post/6844904087788453896
-
-
-
-
-android Application对象和多进程关系
+## android Application对象和多进程关系
 同一个项目的FeelingApplication，AActivity、TestActivty、TestService，
 在AndroidManifest.xml中配置如下
     其中TestActivity配置了android:process="com.Beggar.TestActivity"
