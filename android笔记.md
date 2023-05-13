@@ -578,7 +578,7 @@ Message next() {
             // 取消息
             ...
 
-            // 没有msg或者取出的msg的执行时间大于当前时间的时候
+            // 队列为空或者队列的第一个消息延后执行，那么运行idleHandler
             if (pendingIdleHandlerCount < 0
                     && (mMessages == null || now < mMessages.when)) {
                 pendingIdleHandlerCount = mIdleHandlers.size();
