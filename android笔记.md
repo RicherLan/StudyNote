@@ -1,74 +1,7 @@
-# 杂知识
-* 一些项目技术:https://mp.weixin.qq.com/s/_Ox67FpVi1P032EWyRlZXA
-* 代码整洁之道书：https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
-
-
-# 设计架构：
-* clean architecture:https://www.bookstack.cn/read/Clean-Architecture-zh/docs-ch1.md
-
-# android技术知识：
-* view点击事件分发：https://www.jianshu.com/p/38015afcdb58
-* window：https://juejin.cn/post/6888688477714841608
-* dpi: https://www.jianshu.com/p/d8e6bb5deea5
-* Context：https://mp.weixin.qq.com/s/AtaHv3tKjJniSRhavLx-jA
-* 一张图片的大小:https://www.cnblogs.com/dasusu/p/9789389.html
-* 高效加载大位图:https://developer.android.google.cn/topic/performance/graphics/load-bitmap?hl=zh-tw
-* FlexboxLayout:https://juejin.cn/post/6844903697500241928#heading-19
-* drawable:https://blog.csdn.net/guolin_blog/article/details/50727753
-*  .9图：https://www.cnblogs.com/Free-Thinker/p/13182801.html
-
-
-# Java技术知识点：
-* happens-before:https://segmentfault.com/a/1190000011458941
-* HashMap：https://tech.meituan.com/2016/06/24/java-hashmap.html
-* synchronized: https://xiaomi-info.github.io/2020/03/24/synchronized/
-* AQS(不完整):https://tech.meituan.com/2019/12/05/aqs-theory-and-apply.html
-* 关闭线程池:http://www.justdojava.com/2019/09/10/threadpool-shutdown/
-
-# kotlin
-
-
-# 大前端
-* js教学：https://zh.javascript.info/js?map
-
-# server
-* kafka:https://www.orchome.com/5
-
-# 一些三方库
-* Fresco：https://www.rousetime.com/2017/12/28/Fresco%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90%E4%B9%8BProducer/
-* Retrofit2: https://juejin.cn/post/6844903570605621255#heading-16
-* Rxjava解析：https://docs.corp.kuaishou.com/d/home/fcACwhaVHTNZ_AbfStxFignJN
-* dagger2:https://www.jianshu.com/p/6a65b9d33fea
-
-
-# 操作系统
-* 计算机编码（unicode ASCII）：https://www.cnblogs.com/gavin-num1/p/5170247.html
-* Cache:https://zhuanlan.zhihu.com/p/102293437
-
-
-# 算法
-* LRU：https://leetcode.com/problems/lru-cache/description/
-* LFU：https://leetcode.com/problems/lfu-cache/description/
-
-
-# 一些好用的工具
-*tmux：http://louiszhai.github.io/2017/09/30/tmux/
-
-TODO： 
-* mmkv
-
-
-### 算法：
-LRU：如何用LinkedHashMap实现 https://juejin.cn/post/6844903917524893709, LinkedHashMap天然就是LRU
-
-
-### gc
-gc系列文章 https://www.zhihu.com/column/c_1293612595426095104
-
-
 ### IO
 现在有n个IO事件，我们如何同时处理多个流
 1. 非堵塞忙轮询：如果所有的流都没有数据，那么只会白白浪费cpu
+   ```java
     while(true) {
         for(i : stream[]) {
             if(i has data) {
@@ -76,8 +9,10 @@ gc系列文章 https://www.zhihu.com/column/c_1293612595426095104
             }
         }
     }
+    ```
 
 2. 堵塞：从select可以知道，有IO事件发生了，但不知道是那哪个流(1个、多个、全部)，只能无差别轮训所有的流，找出可以读或者可以写入的流，进行操作
+    ```java
     while(true) {
         select(stream[]) // 堵塞
         for(i : stream[]) {
@@ -86,14 +21,17 @@ gc系列文章 https://www.zhihu.com/column/c_1293612595426095104
             }
         }
     }
+    ```
 
 3. linux 2.3之后，epoll, 会把哪个流发生了怎样的io事件通知我们，此时我们对这些流的操作都是有意义的，复杂度降低到O(1)
+    ```java
      while(true) {
         active_stream[] = epoll_wait()
         for(i in active_stream[]) {
             read or write until unavailable
         }
     }
+    ```
 epoll是Linux中最高效的IO多路复用机制，可以同时监控多个描述符，当某个描述符就绪(读或写就绪)，则立刻通知相应程序进行读或写操作
 epoll有3个方法，epoll_create()， epoll_ctl()，epoll_wait()_
 ** epoll_create :创建epoll句柄**
@@ -103,14 +41,17 @@ epoll有3个方法，epoll_create()， epoll_ctl()，epoll_wait()_
     使用完epoll后，必须调用close()关闭，否则可能导致fd被耗尽。
 
 ** epoll_ctl：执行对需要监听的文件描述符(fd)的操作**
+    ```java
     int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)；
-
+    ```
     用于执行对需要监听的文件描述符(fd)的操作,比如EPOLL_CTL_ADD
     fd：需要监听的文件描述符；
     epoll_event：需要监听的事件
 
 ** epoll_wait：等待事件的到来**
+    ```java
     int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+    ```
 
     等待事件的到来，有三种情况会触发返回
     1. 发生错误 返回值为负数
