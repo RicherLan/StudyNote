@@ -764,13 +764,13 @@ case：App进程StartService方法，向SystemServer进程请求创建Service，
     去创建Service进程，当service创建完毕的时候，请求ActivityManager拆除定时炸弹
 
 
-lifeCycle
+## lifeCycle
 1. lifeCycleRegistry添加观察者(LifeCycleObserver)的时候，会先同步下观察者的状态
 2. LifeCycleObserver一般有两种，注解事件方法和FullLifecycleObserver，注解是运行时，添加observer的时候会动态解析注解，方法和事件注解一一对应Map<MethodReference, Lifecycle.Event>
 
 
 
-android数据恢复：https://juejin.cn/post/6844904079265644551
+## android数据恢复：https://juejin.cn/post/6844904079265644551
 
 在 Android 系统中，需要数据恢复有如下两种场景：
 场景1：资源相关的配置发生改变导致 Activity 被杀死并重新创建。(不考虑在清单文件中配置 android:configChanges 的特殊情况)
@@ -787,10 +787,10 @@ onRestoreInstanceState调用时机：
 这个方法在 onStart 和 onPostCreate 之间被调用。只有在重新创建活动时才会调用此方法；如果出于任何其他原因调用 onStart，则不会调用该方法。
 
 
-ViewModel的好文章：https://juejin.cn/post/6844904079265644551
+## ViewModel的好文章：https://juejin.cn/post/6844904079265644551
 
 
-RecyclerView
+## RecyclerView
 局部刷新：https://juejin.cn/post/6844903817130016782
 四级缓存：https://www.jianshu.com/p/3e9aa4bdaefd
 Scrap(屏幕内的，可以拿来直接使用，如局部刷新时)：Recycler.mAttachedScrap
@@ -798,7 +798,7 @@ Cache()：Recycler.mCachedViews
 ViewCacheExtension
 RecycledViewPool
 
-缓存使用
+#### 缓存使用
 onTouchEvent方()中move事件-->scrollByInternal()-->scrollStep()-->
 layoutManager中的：  LayoutManager.scrollVerticallyBy() ｜ scrollHorizontallyBy()-->scrollBy()-->fill()-->layoutChunk()-->
 LayoutState中的：    layoutState.next(recycler)-->
@@ -807,19 +807,20 @@ Recycler中的：       recycler.getViewForPosition(mCurrentPosition)-->tryGetVi
 如果缓存中拿不到，就走create了
 
 
-Fragment懒加载(主要分析ViewPager场景下)，很不错的文章：https://juejin.cn/post/6844904050698223624
+## Fragment懒加载(主要分析ViewPager场景下)，很不错的文章：https://juejin.cn/post/6844904050698223624
 
-ViewPager2和viewPager
+## ViewPager
+#### ViewPager2和viewPager
 1. ViewPager2是RecyclerView那一套
 2. ViewPager2默认是懒加载的，ViewPager默认是预加载的(左右各1个)
-
-ViewPager
-为什么ViewPager设置宽度、高度无效？
-在OnMeasure()中，先立刻执行了setMeasuredDimension(getDefaultSize(0, widthMeasureSpec),getDefaultSize(0, heightMeasureSpec)); 并没有测量完所有的孩子后根据孩子的大小设置自己的。
+   
+* 为什么ViewPager设置宽度、高度无效？
+a：在OnMeasure()中，先立刻执行了setMeasuredDimension(getDefaultSize(0, widthMeasureSpec),getDefaultSize(0, heightMeasureSpec)); 并没有测量完所有的孩子后根据孩子的大小设置自己的。
 可见，ViewPager的宽高是由它的容器决定的。
 官方注释这么做的原因：我们依靠容器来指定视图的布局大小。我们无法真正知道它是什么，因为我们将添加和删除不同的任意视图并且不希望布局在这种情况下发生变化。
 
-默认缓存数量为左右个一个: DEFAULT_OFFSCREEN_PAGES = 1
+#### 默认缓存数量为左右个一个: DEFAULT_OFFSCREEN_PAGES = 1
+```java
 void setOffscreenPageLimit(int limit) {
     if (limit < DEFAULT_OFFSCREEN_PAGES) {
             limit = DEFAULT_OFFSCREEN_PAGES;
@@ -842,8 +843,10 @@ FragmentPagerAdapter中destroyItem()方法会执行FragmentTransaction.detach(fr
 FragmentStatePagerAdapter中destroyItem()方法会执行FragmentTransaction.remove(fragment)方法，会彻底将fragment从当前Activity的FragmentManager中移除，
     state表明销毁时，会将其onSaveInstanceState(Bundle outState)中的bundle信息保存下来，当用户切换回来，可以通过该bundle恢复生成新的fragment，也就是说，你可以在onSaveInstanceState(Bundle outState)方法中保存一些数据，在onCreate中进行恢复创建。
         在destroyItem的时候会保存state(关联position)，instantiateItem方法中会从拿出保存的state去创建fragment
-
-adapter原理：
+```
+   
+#### adapter原理：
+```java
 准备适配             void startUpdate(ViewGroup container)           如ViewPager在populate方法开始的时候调用
 创建item            Object instantiateItem(ViewGroup container, int position)            如ViewPager在populate中
                                                      FragmentPagerAdapter实现           实现为先通过mFragmentManager.findFragmentByTag(name)找，name是postion加一些字符拼接的，如果能拿到那么fragmentTraction.attach
@@ -858,15 +861,15 @@ adapter原理：
                                                                                     会让旧的currentFragment.setUserUserVisibleHint(flase)
                                                                                     让要设置的fragment.setUserUserVisibleHint(true) 和 fragment.setUserUserVisibleHint(flase) 
 完成适配             void finishUpdate(ViewGroup container)      如viewPager在populate方法快结束的时候调用，FragmentPagerAdapter的实现为fragmentTraction.commitNowAllowingStateLoss
+```
 
+## (为什么onResume方法中不可以获取View宽高)[https://blog.csdn.net/c6E5UlI1N/article/details/129210595]
 
-I* (为什么onResume方法中不可以获取View宽高)[https://blog.csdn.net/c6E5UlI1N/article/details/129210595]
+## WindowManager
 
-WindowManager
+* (Window, WindowManager、WindowManagerGlobal、WindowManagerService之间的关系)[https://juejin.cn/post/6844903893634138120]
 
-Window, WindowManager、WindowManagerGlobal、WindowManagerService之间的关系：https://juejin.cn/post/6844903893634138120
-
-Window分类：
+#### Window分类：
 1. ApplicationWindow：
     Activity的Window类型是TYPE_APPLICATION，在WMS有一个唯一的AppWindowToken与之对应。
     Dialog的Window类型也是TYPE_APPLICATION(Dialog不是子窗口)，Dialog和其所在的Activity共用一个AppWindowToken
@@ -877,18 +880,19 @@ Window分类：
     toast、输入法窗口、系统音量条窗口、系统错误窗口都属于系统窗口
     Toast的Window类型是TYPE_TOAST，TYPE_TOAST是系统窗口的一种，Toast的token是由NotificationManagerService创建的，每个Toast对应一个自己的token，Toast的token在WMS对应的是WindowToken。
 
-window类型的type值：值越大，展示的越靠前(屏幕最上面)，比如来了个电话弹窗会盖在最上面
+#### window类型的type值：值越大，展示的越靠前(屏幕最上面)，比如来了个电话弹窗会盖在最上面
     ApplicationWindow：FIRST_APPLICATION_WINDOW = 1  LAST_APPLICATION_WINDOW = 99
     SubWindow：FIRST_SUB_WINDOW = 1000  LAST_SUB_WINDOW = 1999;
     SystemWindow：FIRST_SYSTEM_WINDOW = 2000  LAST_SYSTEM_WINDOW = 2999
 
-Activity/Dialog/PopupWindow/Toast与WindowState:
-    Activity/Dialog/PopupWindow/Toast在WMS都有对应的WindowState，
-    只是Activity/Dialog/PopupWindow的WindowState属于同一个AppWindowToken，也就是Activity的token,
-    而Toast的WindowState属于自己独有的WindowToken。
+#### Activity/Dialog/PopupWindow/Toast与WindowState:
+    * Activity/Dialog/PopupWindow/Toast在WMS都有对应的WindowState，
+    * 只是Activity/Dialog/PopupWindow的WindowState属于同一个AppWindowToken，也就是Activity的token,
+    * 而Toast的WindowState属于自己独有的WindowToken。
 
 Window的flag：一些属性，比如脸靠近屏幕时不能触摸事件等flag
 
+```java
 // 继承自ViewManager，ViewGroup也实现了ViewManager
 public interface WindowManager extends ViewManager {
 
@@ -896,8 +900,9 @@ public interface WindowManager extends ViewManager {
 //  实现类是WindowManagerImpl
 public final class WindowManagerImpl implements WindowManager {
 }
+```
 
-ViewRootImpl
+## ViewRootImpl
 public final class ViewRootImpl implements ViewParent,View.AttachInfo.Callbacks, ThreadedRenderer.DrawCallbacks { }
 1. View树的树根，并管理view树
 2. 触发view的测量、布局和绘制
@@ -906,8 +911,8 @@ public final class ViewRootImpl implements ViewParent,View.AttachInfo.Callbacks,
     为什么DecorView不直接把事件分发给子view呢？因为窗口要有一些处理，比如打电话脸部靠近屏幕的时候不会响应点击；在比如dialog点击外部区域收起弹窗
 4. 负责与wms进行进程间通信： (ViewRootImpl-->IWindowSession)本地进程  --------Binder通信--------  SystemService进程(WMS的Session)
 
-
-window创建和显示的过程
+## Window
+#### window创建和显示的过程
 大流程简单总结：
 1. ActivityThread.performLaunchActivity() --> Activity.attach() 
     Activity#attach() 方法内phontWindow被创建，并同时创建WindowManagerImpl负责维护phoneWindow的内容
@@ -921,7 +926,7 @@ window创建和显示的过程
                                       -->  WMS
     WindowManagerImpl决定管理DecorView，并创建ViewRootImpl实例，将ViewRootImpl与View树关联，这样ViewRootImpl就可以指挥view树的具体工作。
 
-Window更新的过程
+#### Window更新的过程
 windowManagerImpl.updateViewLayout(view, params) 
     -> WindowManagerGlobal.updateViewLayout(view, params) 
         --> view.setLayoutParams(wparams)
@@ -929,7 +934,8 @@ windowManagerImpl.updateViewLayout(view, params)
             --> viewRootImpl.scheduleTraversals()
 
 
-window创建和显示的过程 -- 代码细节总结：
+#### window创建和显示的过程 -- 代码细节总结：
+```java
 1. create
 ActivitThread: performLaunchActivity()
                     --> ContextImpl appContext 创建 
@@ -1023,11 +1029,11 @@ ViewRootImpl.scheduleTraversals()： https://cloud.tencent.com/developer/article
                                 --> layout()
                             --> performDraw()
                                 --> draw()
+```
 
 
-
-
-view measure
+## View三大流程
+#### View measure
 1. MeasureSpec.UNSPECIFIED用在啥场景：
     MeasureSpec.UNSPECIFIED 表示父 View 对子 View 的大小没有任何限制，子 View 可以任意取大小。在这种情况下，子 View 的宽度和高度可以是任意值（可以是 0，也可以是非常大或非常小），开发者可以根据需要自由地计算自己的大小。
     MeasureSpec.UNSPECIFIED 主要用于一些特殊的布局，通常是自定义 View 或一些高度自适应的控件中。比如，当我们需要实现一个可以无限滚动的视图，我们就需要在onMeasure()方法中根据MeasureSpec.UNSPECIFIED测量子 View 的大小，然后根据子 View 的大小和数量计算出整个布局的大小。
@@ -1038,7 +1044,7 @@ view measure
     3. 难道每新定义一个子view的时候，这个计算measureSpec的都要在写一遍吗？
 
 
-view layout
+#### view layout
 一些位置相关的函数
     getLeft()：左边距离父亲左侧的距离
     getRight(): 右边距离父亲左侧的距离
@@ -1051,8 +1057,9 @@ getMeasureWidth() : 在measure()过程结束后就能获取，通过setMeasuredD
 getWidth(): 在Layout()过程结束后才能获取，通过视图右边的坐标-左边的坐标得到：mRight-mLeft
 
 
-requestLayout() 和 invalidate区别以及原因：
-
+* requestLayout() 和 invalidate区别以及原因：
+   
+#### view draw
 ViewGroup为什么默认不会执行onDraw()? 
 结论：
 1. decorView的onDraw会执行
@@ -1106,22 +1113,26 @@ View.draw(canvas) (decorView)
                                     --> 否则执行 draw(canvas);
 
 
-SurfaceFlinger
-SF是整个Android系统渲染的核心进程，所有应用的渲染逻辑最终都会来到SF中进行处理，最终会把处理后的图像数据交给CPU或者GPU处理。
-SF是生产者消费者思想，生产者生产图元添加到SF的队列中，SF消费队列的图元数据(绘制对应的Layer)
-View、Canvas与Surface的关系：https://www.jianshu.com/p/6d99948d2a0a
+## Surface：
+https://blog.csdn.net/m0_37673128/article/details/113265492
+https://kstack.corp.kuaishou.com/article/654   
+   
+## SurfaceFlinger
+* SF是整个Android系统渲染的核心进程，所有应用的渲染逻辑最终都会来到SF中进行处理，最终会把处理后的图像数据交给CPU或者GPU处理。
+* SF是生产者消费者思想，生产者生产图元添加到SF的队列中，SF消费队列的图元数据(绘制对应的Layer)
+* View、Canvas与Surface的关系：https://www.jianshu.com/p/6d99948d2a0a
 DecorView --- Surface(canvas = surface.lockCanvas(Rect dirty))，存储图像数据 --- Layer图层     // 3者一一对应
 ......
 DecorView --- Surface，存储图像数据 --- Layer图层
 SurfaceFlinger把多个图层合成，然后让cpu或者gpu处理
 
-好文章：https://www.jianshu.com/p/3c61375cc15b
-每一个应用程序的图层在SurfaceFlinger里称为一个Layer， 而每个Layer都拥有一个独立的BufferQueue, 每个BufferQueue都有多个Buffer,Android 系统上目前支持每个Layer最多64个buffer, 这个最大值被定义在frameworks/native/gui/BufferQueueDefs.h， 每个buffer用一个结构体BufferSlot来代表。
+* 好文章：https://www.jianshu.com/p/3c61375cc15b
+* 每一个应用程序的图层在SurfaceFlinger里称为一个Layer， 而每个Layer都拥有一个独立的BufferQueue, 每个BufferQueue都有多个Buffer,Android 系统上目前支持每个Layer最多64个buffer, 这个最大值被定义在frameworks/native/gui/BufferQueueDefs.h， 每个buffer用一个结构体BufferSlot来代表。
 <img width="813" alt="image" src="https://user-images.githubusercontent.com/49143666/231415156-2d4a87fc-f5d1-4a23-95b8-b1e749d68b1b.png">
 
-    
+ 
 <img width="964" alt="image" src="https://user-images.githubusercontent.com/49143666/231407310-43f56f2e-cde0-4e90-8714-2b977639314b.png">    
-双缓冲区 + 同步信号 
+#### 双缓冲区 + 同步信号 
 如果没有同步信号的话：本质就是两个缓冲区操作速率不一样
     1. 系统帧率小于屏幕刷新率：长时间都是同一帧，感觉卡顿
     2. 系统帧率大于屏幕刷新率：屏幕撕裂，甚至跳帧
@@ -1131,29 +1142,30 @@ SurfaceFlinger把多个图层合成，然后让cpu或者gpu处理
 <img width="855" alt="image" src="https://user-images.githubusercontent.com/49143666/231375187-3b273f61-0c71-4456-84ad-03f315b5e935.png">
 图中CPU比如生产位图（BitMap），然后GPU负责颜色转换(如#FFF999D转为LED的硬件色)、珊格化(如位图大小和要展示(屏幕)的大小不一样，要缩放，gpu就计算放大缩小)
 
-双缓冲的问题：CPU、GPU空等(图中的空白部分都在等待)
+* 双缓冲的问题：CPU、GPU空等(图中的空白部分都在等待)
 <img width="973" alt="image" src="https://user-images.githubusercontent.com/49143666/231382329-24efa3ea-d26a-4a08-89d9-8ae292671685.png">
 
-三缓冲：
+* 三缓冲：
 <img width="896" alt="image" src="https://user-images.githubusercontent.com/49143666/231383626-8671ed39-37a5-412c-aa57-fb52e064a105.png">
 每个window都有3个缓冲：查看命令 adb shell dumpsys SurfaceFlinger
 <img width="1715" alt="image" src="https://user-images.githubusercontent.com/49143666/231386229-f0489ec1-f778-4c34-9e65-58472e40a871.png">
 <img width="1532" alt="image" src="https://user-images.githubusercontent.com/49143666/231386453-3b17b819-9ace-45ab-a6d5-fb56a226889d.png">
 
 
-App如何与SurfaceFlinger通信？
+#### App如何与SurfaceFlinger通信？
 <img width="1288" alt="image" src="https://user-images.githubusercontent.com/49143666/231704620-655d804c-53c0-403a-9590-048a4753882d.png">
 
-View的绘制如何把数据传递给SurfaceFlinger？
+#### View的绘制如何把数据传递给SurfaceFlinger？
 A：先surface.lockCanvas()申请buffer，然后绘制，绘制完了调用surface.unlockCanvasAndPost()。这里surface是有surfafceFlinger的bufferQueue的生产者的本地代理
 
  
     
-事件分发：
-InputManagerService: https://www.jianshu.com/p/f05d6b05ba17
+## 事件分发：
+* InputManagerService: https://www.jianshu.com/p/f05d6b05ba17
 
-三块代码：
+#### 三块代码：
 ----------------------------------------------
+```java
 第一块代码：是否拦截子view，intercepted为true拦截，为false不拦截
 // Check for interception.
 final boolean intercepted;
@@ -1172,23 +1184,24 @@ if (!canceled && !intercepted) {
 第三块代码
 1. 如果子view都不处理，询问自己是否要处理事件
 2. 子view处理 ---
+```
 ----------------------------------------------
 
-处理的事件： Action_down、Action_move、.......Action_move、Action_up
+* 处理的事件： Action_down、Action_move、.......Action_move、Action_up
 down事件谁处理的，move事件也是谁处理
 
-左右滑动的ViewPager中嵌套上下滑动的ListView
+#### 左右滑动的ViewPager中嵌套上下滑动的ListView
 1. ViewPager.onInterceptTouchEvent 为 true   --》 上下滑动不可以，左右可以
 2. ViewPager.onInterceptTouchEvent 为 false  --》 上下滑动可以，左右不可以
 3. ViewPager.onInterceptTouchEvent 为 false，
     ListView重写dispatchTouchEvent返回false   -->  上下滑动不可以，左右可以
 
-第2点：ViewPager.onInterceptTouchEvent 为 false  --》 上下滑动可以，左右不可以
+* 第2点：ViewPager.onInterceptTouchEvent 为 false  --》 上下滑动可以，左右不可以
 答：Action_Down -- 询问子view是否处理事件，只在Down的时候处理 -- target.child = ListView
    Action_Move -- target.child - ListView
    dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign) -- 孩子(ListView)处理事件
 
-第3点：ViewPager.onInterceptTouchEvent 为 false，
+* 第3点：ViewPager.onInterceptTouchEvent 为 false，
     ListView重写dispatchTouchEvent返回false   -->  上下滑动不可以，左右可以
 答：down事件，询问listView处理这个事件吗？
   ListView重写dispatchTouchEvent返回false，导致if进不去：dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign)
@@ -1197,7 +1210,7 @@ down事件谁处理的，move事件也是谁处理
         handled = dispatchTransformedTouchEvent(ev, canceled, null,TouchTarget.ALL_POINTER_IDS);
     }
 
-处理事件冲突：
+#### 处理事件冲突：
 1. 内部拦截法(由子view根据条件来让事件由谁处理) -- 一定想办法让子view拿到事件
 2. 外部拦截法(由父view。。。。)
 
@@ -1206,12 +1219,12 @@ down事件谁处理的，move事件也是谁处理
 
 
 
-View
+## View
 自定义view的3个构造方法，xml文件被LayoutInflater解析的时候，如果那几个factory没有创建出view的话，最终会反射调用两参的构造方法，且构造器会缓存到layoutInfater中:HashMap<viewName, constructor>
 
-ViewStub: 继承自View
-通过setVisibility(VIsible) 或者 inflate()方法可以展示子view
-原理：
+#### ViewStub: 继承自View
+* 通过setVisibility(VIsible) 或者 inflate()方法可以展示子view
+* 原理：
 1. 在构造方法里面setVisibility(GONE);
 2. 重写了onMeasure方法，方法的实现是setMeasuredDimension(0, 0);
 3. setVisibility()重写了，不会直接设置viewStub本身，而是设置要替换的view的显隐性，如果view还没infalte，那么inflate出来
@@ -1222,7 +1235,7 @@ ViewStub: 继承自View
     (3) viewStub的parent删除viewstub这个子view，然后把替换的view添加进去。
 
 
-include标签：直接在LayoutInflater.parseInclude函数添加替换的layout的
+#### include标签：直接在LayoutInflater.parseInclude函数添加替换的layout的
 1. 不能作为根节点
 2. <Include> 标签中设置的宽高等信息，会变成LayoutParams对象设置给inflate出来的view
 3. 如果Include设置了id的话，那么把替换的view的id设置为Include的id
@@ -1230,13 +1243,7 @@ include标签：直接在LayoutInflater.parseInclude函数添加替换的layout�
 5. parent去addView(inflate出来的view)
 
 
-
-Surface：
-https://blog.csdn.net/m0_37673128/article/details/113265492
-https://kstack.corp.kuaishou.com/article/654
-
-
-android资源加载：
+## android资源加载：
 Activity的Resources： getResource().getDrawable(drawableId)；
     ActivityThread: performLaunchActivity() --> ContextImpl appContext = createBaseContextForActivity(ActivityClientRecord r) 注意这时activity还没被new出来
             --> ContextImpl appContext = ContextImpl.createActivityContext(ActivityThread mainThread, LoadedApk packageInfo, ActivityInfo activityInfo, IBinder activityToken, .....)
@@ -1247,7 +1254,7 @@ Activity的Resources： getResource().getDrawable(drawableId)；
 
 Dialog的Resources：没看代码，但是我们知道Dialog构造的时候需要传递Activity的Context
 
-app换肤的思路：参考的这个库的https://github.com/ximsfei/Android-skin-support
+#### app换肤的思路：参考的这个库的https://github.com/ximsfei/Android-skin-support
 1. 知道xml的view如何解析的
 2. 如何拦截系统的创建流程？LayoutInflater.setFactory2可以拦截--aop的思路去实现(监听activity的create)
 3. 拦截怎么做？重写系统的创建过程代码(copy源码)
@@ -1260,12 +1267,13 @@ app换肤的思路：参考的这个库的https://github.com/ximsfei/Android-ski
     (4) 通过app的资源id --》找到app的资源的name和type --》找到皮肤包中对应资源的id
 
 
-app页面置灰：
+## app页面置灰：
 描述一个颜色的时候，会有如下几个数据：色相、饱和度、亮度/明度。
 //  色相：色彩的基本属性，就是平常所说的颜色名称，如红色、黄色等。
 //  饱和度：是指色彩的纯度，越高色彩越纯，低则逐渐变灰，取值0-100%。
 //  亮度/明度：色彩的明亮程度，一般情况下颜色加白色亮就越来越高，加黑色则越来越暗，取值0-100%。
 
+```java
 Paint()对象的饱和度设置为0即可变成灰色：
 private val garyPaint: Paint by lazy {
     Paint().apply {
@@ -1282,24 +1290,24 @@ fun garyView(view: View) {
     // LAYER_TYPE_HARDWARE和LAYER_TYPE_SOFTWARE都可以
     view.setLayerType(View.LAYER_TYPE_HARDWARE, garyPaint)
 }
+```
 
-
-Toast:
-toast必须在主线程吗？ https://juejin.cn/post/6844904103538065422
-如果直接new一个线程，不loop的话，调用Toast.makeText()，该方法里面会取looper，拿不到的话会抛异常Can't toast on a thread that has not called Looper.prepare()
-Toast展示内容，是inflate一个布局(主体就是TextView)，然后拿到INotificationManager服务，入队
-
-
-
+## Toast:
+* toast必须在主线程吗？ https://juejin.cn/post/6844904103538065422
+* 如果直接new一个线程，不loop的话，调用Toast.makeText()，该方法里面会取looper，拿不到的话会抛异常Can't toast on a thread that has not called Looper.prepare()
+* Toast展示内容，是inflate一个布局(主体就是TextView)，然后拿到INotificationManager服务，入队
 
 
 
 
-Android startup.Initializer :
 
 
 
-leakCanary的内存泄漏分析过程
+## Android startup.Initializer :
+
+
+
+## leakCanary的内存泄漏分析过程
 1)注册监听Activity生命周期onDestroy事件
 (2)在Activity onDestroy事件回调中创建KeyedWeakReference对象，并关联ReferenceQueue
 (3)延时5秒检查目标对象是否回收
@@ -1309,16 +1317,14 @@ leakCanary的内存泄漏分析过程
 (7)输出分析结果，并根据分析结果展示到可视化页面
 
 
-编码、字符集、讲一下 Unicode 和 UTF-8 的区别：https://zhuanlan.zhihu.com/p/51828216
+## 编码、字符集、讲一下 Unicode 和 UTF-8 的区别：https://zhuanlan.zhihu.com/p/51828216
 
-protocol Buffer原理：https://juejin.cn/post/6844903997292150791
-为什么Protocol Buffer更快，更小，这里再总结一下：
+## protocol Buffer原理：https://juejin.cn/post/6844903997292150791
+#### 为什么Protocol Buffer更快，更小，这里再总结一下：
 1. 序列化的时候，不序列化key的name，只序列化key的编号
 2. 序列化的时候，没有赋值的key，不参与序列化，反序列化的时候直接使用默认值填充
 3. 可变长度编码，减小字节占用
 4. TLV编码，去除没有的符号，使数据更加紧凑
-
-
 
 
 
