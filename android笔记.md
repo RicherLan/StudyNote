@@ -742,8 +742,10 @@ int main()
     return 0;  
 }  
 ```
-                                               
-                                               
+   
+## SharedPreference和ContentProvider
+https://juejin.cn/post/6844903586237775880?share_token=34cb72a1-01aa-461d-ba4e-5bdd9ded30b2
+   
 ## ContentProvider
 简单介绍的文章：https://blog.csdn.net/carson_ho/article/details/76101093
     定义：内容提供者，是android四大组建之一
