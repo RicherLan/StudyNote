@@ -323,3 +323,20 @@ threadLocal释放value是有问题的，如果使用不当，很容易内存泄�
     3. threadLocal的get和set(只有hash冲突的时候发现key为null了才会去让value=null)
 
 我觉得的一个点是，threadLocalMap的hash方式是开放地址法，可以节省空间，但感觉这并不是主要原因
+
+
+## 引用
+#### Reference
+<img width="1377" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/1fc840ab-c0b0-4a59-acee-5c30c17e1ba7">
+
+#### 引用队列
+<img width="1548" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/5c4483a1-4839-439e-a5ff-181ab6080bab">
+* 当引用的对象被回收时，reference会加入到引用队列中
+* 应用场景：WeakHashMap, 相对于ThreadLoacl的Entry的value的内存泄漏，WeakHashMap会查询引用队列去清空value
+```java
+class WeakHashMap {
+    private final ReferenceQueue<Object> queue = new ReferenceQueue<>();
+}
+```
+<img width="949" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/faf9ac74-d0c9-47cc-a2b1-1250800dd221">
+
