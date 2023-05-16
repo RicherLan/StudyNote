@@ -1651,11 +1651,147 @@ down事件谁处理的，move事件也是谁处理
         handled = dispatchTransformedTouchEvent(ev, canceled, null,TouchTarget.ALL_POINTER_IDS);
     }
 
+#### ViewGroup#onInterceptTouchEvent的执行时机
+```java
+   @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+      xxxxx
+      // Check for interception.
+            final boolean intercepted;
+            if (actionMasked == MotionEvent.ACTION_DOWN
+                    || mFirstTouchTarget != null) {
+                final boolean disallowIntercept = (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
+                if (!disallowIntercept) {
+                    intercepted = onInterceptTouchEvent(ev);
+                    ev.setAction(action); // restore action in case it was changed
+                } else {
+                    intercepted = false;
+                }
+            } else {
+                // There are no touch targets and this action is not an initial down
+                // so this view group continues to intercept touches.
+                intercepted = true;
+            }
+   
+    xxxxxxx
+   }
+```
+   
+   
+   
 #### 处理事件冲突：
 1. 内部拦截法(由子view根据条件来让事件由谁处理) -- 一定想办法让子view拿到事件
-2. 外部拦截法(由父view。。。。)
+* 内部拦截法是将事件控制权交给子View，若子View需要事件，则对事件进行处理，不需要则将事件传递给父ViewGroup，让父ViewGroup处理。
+* 子View通过调用父ViewGroup的requestDisallowInterceptTouchEvent来干预父ViewGroup对事件的拦截状况
+* 父ViewGroup不能拦截DOWN事件，至于MOVE或者UP事件的拦截状态要根据具体的情景
+代码模板
+```java
+ViewGroup伪代码
+@Override
+public boolean onInterceptTouchEvent(MotionEvent ev) {
+    switch (ev.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+            return false;
+        default:
+            return true;
+    }
+}
+```
+```java
+ @Override
+public boolean dispatchTouchEvent(MotionEvent ev) {
+    switch (ev.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+            //禁止父容器拦截事件
+            getParent().requestDisallowInterceptTouchEvent(true);
+            break;
+        case MotionEvent.ACTION_MOVE:
+            if (当期View不需要此事件) {
+                // 允许父容器拦截事件
+                getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            break;
+        default:
+            break;
+    }
+    return super.dispatchTouchEvent(ev);
+}
+```
 
+   
+2. 外部拦截法(由父view。。。。): 父亲控制事件的分发 & 父容器不能拦截DOWN事件或者UP事件。
+这边首先要注意一点，外部拦截时在重写ViewGroup的onInterceptTouchEvent方法时，ViewGroup不能拦截DOWN事件和UP事件。因为一旦ViewGroup拦截了DOWN事件，也就是和mFirstTouchTarget始终为空，同一事件序列中的其他事件都不会再往下传递；若ViewGroup拦截了UP事件，则子View就不会触发单击事件，因为子View的单击事件是在UP事件时被触发的。
 
+当ViewPager接收到DOWN事件，ViewPager默认不拦截DOWN事件，DOWN事件交由ListView处理，由于ListView可以滚动，即可以消费事件，则ViewPager的mFirstTouchTarget会被赋值，即找到处理事件的子View。然后ViewPager接收到MOVE事件，
+若此事件是ViewPager不需要，则同样会将事件交由ListView去处理，然后ListView处理事件；
+若此事件ViewGroup需要，因为DOWN事件被ListView处理，mFirstTouchEventTarget会被赋值，也就会调用onInterceptedTouchEvent,此时由于ViewPager对此事件感兴趣，则onInterceptedTouchEvent方法会返回true，表示ViewPager会拦截事件，此时当前的MOVE事件会消失，变为CANCEL事件，往下传递或者自己处理，同时mFirstTouchTarget被重置为null。
+当MOVE事件再次来到时，由于mFristTouchTarget为null，所以接下来的事件都交给了ViewPager
+```java
+   public class MyViewPager extends ViewPager {
+    private int mLastX;
+    private int mLastY;
+
+    public MyViewPager(@NonNull Context context) {
+        super(context);
+    }
+
+    public MyViewPager(@NonNull Context context, @Nullable AttributeSet attrs) {
+        super(context, attrs);
+    }
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        //一些ViewPager拖拽的标志位要设置，必调super，否则看不到效果
+        super.onInterceptTouchEvent(ev);
+
+        boolean isIntercepted = false;
+        switch (ev.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (needEvent(ev)) {
+                    isIntercepted = true;
+                }
+                break;
+            default:
+        }
+        mLastX = (int) ev.getX();
+        mLastY = (int) ev.getY();
+
+        LogUtils.d(" lastX = " + mLastX + " lastY = " + mLastY);
+        return isIntercepted;
+    }
+
+    private boolean needEvent(MotionEvent ev) {
+        //水平滚动距离大于垂直滚动距离则将事件交由ViewPager处理
+        return Math.abs(ev.getX() - mLastX) > Math.abs(ev.getY() - mLastY);
+    }
+
+}
+```
+外部拦截法通用模版：
+```java
+   public boolean onInterceptTouchEvent(MotionEvent ev) {
+        boolean isIntercept = false;
+        switch (ev.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                //DOWN事件不能拦截，否则事件将无法分发到子View
+                isIntercept = false;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                //根据条件判断是否拦截事件
+                isIntercept = needThisEvent();
+                break;
+            case MotionEvent.ACTION_UP:
+                //一旦父容器拦截了UP事件，子View将无法触发点击事件
+                isIntercept = false;
+                break;
+            default:
+                break;
+        }
+        return isIntercept;
+    }
+```
 
 
 
@@ -1663,8 +1799,108 @@ down事件谁处理的，move事件也是谁处理
 ## View
 自定义view的3个构造方法，xml文件被LayoutInflater解析的时候，如果那几个factory没有创建出view的话，最终会反射调用两参的构造方法，且构造器会缓存到layoutInfater中:HashMap<viewName, constructor>
 
+#### layoutInflater
+```java
+   public View inflate(XmlPullParser parser, @Nullable ViewGroup root, boolean attachToRoot) {
+      synchronized (mConstructorArgs) {
+            Trace.traceBegin(Trace.TRACE_TAG_VIEW, "inflate");
+
+            final Context inflaterContext = mContext;
+            final AttributeSet attrs = Xml.asAttributeSet(parser);
+            Context lastContext = (Context) mConstructorArgs[0];
+            mConstructorArgs[0] = inflaterContext;
+            View result = root;
+
+            try {
+                advanceToRootNode(parser);
+                final String name = parser.getName();
+
+                if (DEBUG) {
+                    System.out.println("**************************");
+                    System.out.println("Creating root view: "
+                            + name);
+                    System.out.println("**************************");
+                }
+
+                if (TAG_MERGE.equals(name)) {
+                    if (root == null || !attachToRoot) {
+                        throw new InflateException("<merge /> can be used only with a valid "
+                                + "ViewGroup root and attachToRoot=true");
+                    }
+
+                    rInflate(parser, root, inflaterContext, attrs, false);
+                } else {
+                    // Temp is the root view that was found in the xml
+                    final View temp = createViewFromTag(root, name, inflaterContext, attrs);
+
+                    ViewGroup.LayoutParams params = null;
+
+                    if (root != null) {
+                        if (DEBUG) {
+                            System.out.println("Creating params from root: " +
+                                    root);
+                        }
+                        // Create layout params that match root, if supplied
+                        params = root.generateLayoutParams(attrs);
+                        // 这个细节注意下
+                        params = root.generateLayoutParams(attrs);
+                        if (!attachToRoot) {
+                            // Set the layout params for temp if we are not
+                            // attaching. (If we are, we use addView, below)
+                            temp.setLayoutParams(params);
+                        }
+                    }
+
+                    if (DEBUG) {
+                        System.out.println("-----> start inflating children");
+                    }
+
+                    // Inflate all children under temp against its context.
+                     // 内部会判断标签incluse、merge等分别创建子view
+                    rInflateChildren(parser, temp, attrs, true);
+
+                    if (DEBUG) {
+                        System.out.println("-----> done inflating children");
+                    }
+
+                    // We are supposed to attach all the views we found (int temp)
+                    // to root. Do that now.
+                    if (root != null && attachToRoot) {
+                        root.addView(temp, params);
+                    }
+
+                    // Decide whether to return the root that was passed in or the
+                    // top view found in xml.
+                    if (root == null || !attachToRoot) {
+                        result = temp;
+                    }
+                }
+
+            } catch (XmlPullParserException e) {
+                final InflateException ie = new InflateException(e.getMessage(), e);
+                ie.setStackTrace(EMPTY_STACK_TRACE);
+                throw ie;
+            } catch (Exception e) {
+                final InflateException ie = new InflateException(
+                        getParserStateDescription(inflaterContext, attrs)
+                        + ": " + e.getMessage(), e);
+                ie.setStackTrace(EMPTY_STACK_TRACE);
+                throw ie;
+            } finally {
+                // Don't retain static reference on context.
+                mConstructorArgs[0] = lastContext;
+                mConstructorArgs[1] = null;
+
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
+
+            return result;
+        }
+   }
+```
+   
 #### ViewStub: 继承自View
-* 通过setVisibility(VIsible) 或者 inflate()方法可以展示子view
+* 通过setVisibility(Visible) 或者 inflate()方法可以展示子view
 * 原理：
 1. 在构造方法里面setVisibility(GONE);
 2. 重写了onMeasure方法，方法的实现是setMeasuredDimension(0, 0);
@@ -1685,6 +1921,7 @@ down事件谁处理的，move事件也是谁处理
 
 
 ## android资源加载：
+```java
 Activity的Resources： getResource().getDrawable(drawableId)；
     ActivityThread: performLaunchActivity() --> ContextImpl appContext = createBaseContextForActivity(ActivityClientRecord r) 注意这时activity还没被new出来
             --> ContextImpl appContext = ContextImpl.createActivityContext(ActivityThread mainThread, LoadedApk packageInfo, ActivityInfo activityInfo, IBinder activityToken, .....)
@@ -1692,9 +1929,10 @@ Activity的Resources： getResource().getDrawable(drawableId)；
     ResourcesManager: -->createResourcesForActivity() --> ResourcesImpl resourcesImpl = findOrCreateResourcesImplForKeyLocked(...)
                         -->ResourcesImpl createResourcesImpl(...)-->AssetManager assets = createAssetManager(...) --> apkAssets = ApkAssets.loadFromPath(key.path...) 这个path就是res目录，AssetManager就是通过ApkAssets构建的
                         --> ResourcesImpl impl = new ResourcesImpl(assets, ...)
-
+```
 Dialog的Resources：没看代码，但是我们知道Dialog构造的时候需要传递Activity的Context
 
+   
 #### app换肤的思路：参考的这个库的https://github.com/ximsfei/Android-skin-support
 1. 知道xml的view如何解析的
 2. 如何拦截系统的创建流程？LayoutInflater.setFactory2可以拦截--aop的思路去实现(监听activity的create)
