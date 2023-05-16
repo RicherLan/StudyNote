@@ -787,9 +787,148 @@ onRestoreInstanceState调用时机：
 这个方法在 onStart 和 onPostCreate 之间被调用。只有在重新创建活动时才会调用此方法；如果出于任何其他原因调用 onStart，则不会调用该方法。
 
 
-## ViewModel的好文章：https://juejin.cn/post/6844904079265644551
+## ViewModel
+* 好文章：https://juejin.cn/post/6844904079265644551
+#### 有点
+1. 可以提供和管理UI界面数据。(将加载数据与数据恢复从 Activity or Fragment中解耦)
+2. 可感知生命周期的组件。
+3. 不会因配置改变而销毁。
+4. 可以配合 LiveData 使用。
+5. 多个 Fragment 可以共享同一 ViewModel。
+6. 等等等....
+   
+#### ViewModelStore
+<img width="749" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/9289380d-9593-4cd2-af28-3e3c42d763ad">
 
+#### ViewModelProvider
+```java
+   @NonNull
+    @MainThread
+    public <T extends ViewModel> T get(@NonNull Class<T> modelClass) {
+        String canonicalName = modelClass.getCanonicalName();
+        if (canonicalName == null) {
+            throw new IllegalArgumentException("Local and anonymous classes can not be ViewModels");
+        }
+        return get(DEFAULT_KEY + ":" + canonicalName, modelClass);
+    }
+   
+   @NonNull
+    @MainThread
+    public <T extends ViewModel> T get(@NonNull String key, @NonNull Class<T> modelClass) {
+        ViewModel viewModel = mViewModelStore.get(key);
 
+        if (modelClass.isInstance(viewModel)) {
+            if (mFactory instanceof OnRequeryFactory) {
+                ((OnRequeryFactory) mFactory).onRequery(viewModel);
+            }
+            return (T) viewModel;
+        } else {
+            //noinspection StatementWithEmptyBody
+            if (viewModel != null) {
+                // TODO: log a warning.
+            }
+        }
+        if (mFactory instanceof KeyedFactory) {
+            viewModel = ((KeyedFactory) mFactory).create(key, modelClass);
+        } else {
+            viewModel = mFactory.create(modelClass);
+        }
+        mViewModelStore.put(key, viewModel);
+        return (T) viewModel;
+    }
+```
+
+#### ViewModel 在 Activity 中不会因配置改变而销毁的原理
+* ViewModeStoreOwener
+<img width="1140" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/e70cc245-9fab-4eca-b4be-aff716f39bea">
+* ComponentActivity实现了ViewModeStoreOwener(Fragment也是)
+<img width="1193" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/1358c731-9ceb-44c6-9753-cac5dcf18d1f">
+<img width="976" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/5c1387ea-6be3-4adc-b2ee-0ad7affc9371">
+```java
+static final class NonConfigurationInstances {
+     Object custom;
+     ViewModelStore viewModelStore;
+}
+```
+* ActivityThread#performDestroyActivity()方法调用了activity.retainNonConfigurationInstances
+<img width="1265" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/4485345f-bced-477a-968f-f00c955bfa07">
+* Activity的onRetainNonConfigurationInstance方法
+onRetainNonConfigurationInstance 方法系统调用时机介于 onStop - onDestory 之间，getLastNonConfigurationInstance 方法可在 onCreate 与 onStart 方法中调用。
+<img width="1079" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/e5bbf5e5-fcba-47ae-ae3c-06eade81dc75">
+* Activity的getLastNonConfigurationInstance方法
+<img width="816" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/f09b54dd-eb7e-4ca4-b6e8-d8cd2ad267b0">
+* Activity的attach方法里面传入了lastNonConfigurationInstances
+<img width="1134" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/e7d56a57-0950-4bbc-bde6-54955a3a0db3">
+<img width="1105" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/6bf1765f-38bb-426b-8f2f-334840e3d8c5">
+
+#### ViewModel 何时判断是否被移除
+监听生命周期destroy
+```java
+    public ComponentActivity() {
+        Lifecycle lifecycle = getLifecycle();
+        //省略更多....
+        getLifecycle().addObserver(new LifecycleEventObserver() {
+            @Override
+            public void onStateChanged(@NonNull LifecycleOwner source,
+                    @NonNull Lifecycle.Event event) {
+                if (event == Lifecycle.Event.ON_DESTROY) {
+                    if (!isChangingConfigurations()) {
+                       //👇在配置没发生改变且走到onDestory方法时，清除所有的ViewModel
+                        getViewModelStore().clear();
+                    }
+                }
+            }
+        });
+    }
+```
+
+#### ViewModel 在 Fragment 的绑定过程
+
+#### ViewModel 在 Fragment 中不会因配置改变而销毁的原理
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/2c723d84-30c4-4857-9e98-6255986487e8)
+ViewModel 在 Fragment 中不会因配置改变而销毁的原因其实是因为其声明的 ViewModel 是存储在 FragmentManagerViewModel 中的，而 FragmentManagerViewModel 是存储在宿主 Activity 中的 ViewModelStore 中，又因 Activity 中 ViewModelStore不会因配置改变而销毁，故 Fragment 中 ViewModel 也不会因配置改变而销毁
+
+#### ViewModel 能在 Fragment 中共享的原理
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/78e00a2f-8df5-4303-90e7-855a4b41f746)
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/0fc57ae9-0d10-44af-ba8d-81c44a0d9c79)
+假如我们想 Fragment D 获取 Fragment A 中的数据，那么我们只有在 Activity 中的 ViewModelStore 下添加 ViewModel。只有这样，我们才能在不同 Fragment 中获取相同的数据。这也是为什么在 Fragment 中使用共享的 ViewModel 时，我们要在调用ViewModelProvider.of() 创建 ViewModel 时需要传入 getActivity() 的原因。
+```java
+       public class SharedViewModel extends ViewModel {
+        private final MutableLiveData<Item> selected = new MutableLiveData<Item>();
+
+        public void select(Item item) {
+            selected.setValue(item);
+        }
+
+        public LiveData<Item> getSelected() {
+            return selected;
+        }
+    }
+
+    public class FragmentA extends Fragment {
+        private SharedViewModel model;
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            //👇传入的是宿主Activity
+            model = ViewModelProviders.of(getActivity()).get(SharedViewModel.class);
+            itemSelector.setOnClickListener(item -> {
+                model.select(item);
+            });
+        }
+    }
+
+    public class FragmentD extends Fragment {
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+             //👇传入的是宿主Activity
+            SharedViewModel model = ViewModelProviders.of(getActivity()).get(SharedViewModel.class);
+            model.getSelected().observe(this, { item ->
+               // Update the UI.
+            });
+        }
+    }
+```
+   
 ## RecyclerView
 局部刷新：https://juejin.cn/post/6844903817130016782
 四级缓存：https://www.jianshu.com/p/3e9aa4bdaefd
