@@ -932,22 +932,87 @@ ViewModel 在 Fragment 中不会因配置改变而销毁的原因其实是因为
 ## RecyclerView
 局部刷新：https://juejin.cn/post/6844903817130016782
 四级缓存：https://www.jianshu.com/p/3e9aa4bdaefd
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/e9965849-4d38-4032-9f70-ea16b74044cd)
+
+#### RecyclerView的缓存分为四级
 Scrap(屏幕内的，可以拿来直接使用，如局部刷新时)：Recycler.mAttachedScrap
 Cache()：Recycler.mCachedViews
 ViewCacheExtension
 RecycledViewPool
+ 
+* Scrap对应ListView 的Active View，就是屏幕内的缓存数据，就是相当于换了个名字，可以直接拿来复用。
 
+* Cache 刚刚移出屏幕的缓存数据，默认大小是2个，当其容量被充满同时又有新的数据添加的时候，会根据FIFO原则，把优先进入的缓存数据移出并放到下一级缓存中，然后再把新的数据添加进来。Cache里面的数据是干净的，也就是携带了原来的ViewHolder的所有数据信息，数据可以直接来拿来复用。需要注意的是，cache是根据position来寻找数据的，这个postion是根据第一个或者最后一个可见的item的position以及用户操作行为（上拉还是下拉）。
+举个栗子：当前屏幕内第一个可见的item的position是1，用户进行了一个下拉操作，那么当前预测的position就相当于（1-1=0），也就是position=0的那个item要被拉回到屏幕，此时RecyclerView就从Cache里面找position=0的数据，如果找到了就直接拿来复用。
+
+* ViewCacheExtension是google留给开发者自己来自定义缓存的，这个ViewCacheExtension我个人建议还是要慎用，因为我扒拉扒拉网上其他的博客，没有找到对应的使用场景，而且这个类的api设计的也有些奇怪，只有一个public abstract View getViewForPositionAndType(@NonNull Recycler recycler, int position, int type);让开发者重写通过position和type拿到ViewHolder的方法，却没有提供如何产生ViewHolder或者管理ViewHolder的方法，给人一种只出不进的赶脚，还是那句话慎用。
+
+* RecycledViewPool刚才说了Cache默认的缓存数量是2个，当Cache缓存满了以后会根据FIFO（先进先出）的规则把Cache先缓存进去的ViewHolder移出并缓存到RecycledViewPool中，RecycledViewPool默认的缓存数量是5个。RecycledViewPool与Cache相比不同的是，从Cache里面移出的ViewHolder再存入RecycledViewPool之前ViewHolder的数据会被全部重置，相当于一个新的ViewHolder，而且Cache是根据position来获取ViewHolder，而RecycledViewPool是根据itemType获取的，如果没有重写getItemType（）方法，itemType就是默认的。因为RecycledViewPool缓存的ViewHolder是全新的，所以取出来的时候需要走onBindViewHolder（）方法。
+再来张图看看整体流程
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/127be8c0-fd2d-43bb-8b56-362112a5fe0d)
+
+#### 数据结构
+* Recycler对象，这个对象是RecyclerView的内部类
+```java
+    public final class Recycler {
+        final ArrayList<ViewHolder> mAttachedScrap = new ArrayList<>();
+        ArrayList<ViewHolder> mChangedScrap = null;
+
+        final ArrayList<ViewHolder> mCachedViews = new ArrayList<ViewHolder>();
+
+        private final List<ViewHolder>
+                mUnmodifiableAttachedScrap = Collections.unmodifiableList(mAttachedScrap);
+
+        private int mRequestedCacheMax = DEFAULT_CACHE_SIZE;
+        int mViewCacheMax = DEFAULT_CACHE_SIZE;
+
+        RecycledViewPool mRecyclerPool;
+
+        private ViewCacheExtension mViewCacheExtension;
+
+        static final int DEFAULT_CACHE_SIZE = 2;
+}
+```
+   
+* RecycledViewPool
+```java
+   public static class RecycledViewPool {
+        private static final int DEFAULT_MAX_SCRAP = 5;
+        static class ScrapData {
+            final ArrayList<ViewHolder> mScrapHeap = new ArrayList<>();
+            int mMaxScrap = DEFAULT_MAX_SCRAP;
+            long mCreateRunningAverageNs = 0;
+            long mBindRunningAverageNs = 0;
+        }
+        SparseArray<ScrapData> mScrap = new SparseArray<>();
+```
+   
 #### 缓存使用
+```java
 onTouchEvent方()中move事件-->scrollByInternal()-->scrollStep()-->
 layoutManager中的：  LayoutManager.scrollVerticallyBy() ｜ scrollHorizontallyBy()-->scrollBy()-->fill()-->layoutChunk()-->
 LayoutState中的：    layoutState.next(recycler)-->
 Recycler中的：       recycler.getViewForPosition(mCurrentPosition)-->tryGetViewHolderForPositionByDeadline(position)-->先查mChangedScrap中-->开始走4级缓存
 注意从pool中取到ViewHolde后，会调用vh.resetInternal()去清空数据
 如果缓存中拿不到，就走create了
+```
+
+#### 监听回收
+<img width="1254" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/8429918a-d434-42a3-a7f0-c4a1b2e79e74">
+<img width="1029" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/36803d14-02d3-4af5-9e98-4e53dddcd659">
 
 
 ## Fragment懒加载(主要分析ViewPager场景下)，很不错的文章：https://juejin.cn/post/6844904050698223624
+两种方案：在ViewPager的Adapter中有深刻体现
+* 老一套的懒加载
+优点：不用去控制 FragmentManager的 add+show+hide 方法，所有的懒加载都是在Fragment 内部控制，也就是控制 setUserVisibleHint + onHiddenChanged 这两个函数。
+缺点：实际不可见的 Fragment，其 onResume 方法任然会被调用，这种反常规的逻辑，无法容忍。
 
+* 新一套的懒加载（Androidx下setMaxLifecycle）
+优点：在非特殊的情况下(缺点1)，只有实际的可见 Fragment，其 onResume 方法才会被调用，这样才符合方法设计的初衷。
+缺点：对于 Fragment 的嵌套，及时使用了 setMaxLifecycle 方法。同级不可见的Fragment， 仍然要调用 onResume 方法。需要在原有的 add+show+hide 方法中，继续调用 setMaxLifecycle 方法来控制Fragment 的最大生命状态。
+
+   
 ## ViewPager
 #### ViewPager2和viewPager
 1. ViewPager2是RecyclerView那一套
@@ -1002,8 +1067,188 @@ FragmentStatePagerAdapter中destroyItem()方法会执行FragmentTransaction.remo
 完成适配             void finishUpdate(ViewGroup container)      如viewPager在populate方法快结束的时候调用，FragmentPagerAdapter的实现为fragmentTraction.commitNowAllowingStateLoss
 ```
 
-## (为什么onResume方法中不可以获取View宽高)[https://blog.csdn.net/c6E5UlI1N/article/details/129210595]
-
+   
+## 获得view的宽高   
+#### 为什么onResume方法中不可以获取View宽高
+首先我们清楚，要拿到View的宽高，那么View的绘制流程（measure—layout—draw）至少要完成measure，【记住这一点】。
+还要弄清楚Activity的生命周期，关于Activity的启动流程，后面单独写一篇，本文会带一部分。
+另外布局都是通过setContentView(int)方法设置的，所以弄清楚setContentView的流程也很重要，后面也补一篇。
+首先要知道Activity的生命周期都在ActivityThread中, 当我们调用startActivity时，最终会走到ActivityThread中的performLaunchActivity
+```java
+   private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+        ……
+        Activity activity = null;
+        try {
+            java.lang.ClassLoader cl = appContext.getClassLoader();
+          // 【关键点1】通过反射加载一个Activity
+            activity = mInstrumentation.newActivity(
+                    cl, component.getClassName(), r.intent);
+           ……
+        } catch (Exception e) {
+            ……
+        }
+ 
+ 
+        try {
+            ……
+ 
+ 
+            if (activity != null) {
+                ……
+                // 【关键点2】调用attach方法，内部会初始化Window相关信息
+                activity.attach(appContext, this, getInstrumentation(), r.token,
+                        r.ident, app, r.intent, r.activityInfo, title, r.parent,
+                        r.embeddedID, r.lastNonConfigurationInstances, config,
+                        r.referrer, r.voiceInteractor, window, r.configCallback,
+                        r.assistToken);
+ 
+ 
+                ……
+                  
+                if (r.isPersistable()) {
+                  // 【关键点3】调用Activity的onCreate方法
+                    mInstrumentation.callActivityOnCreate(activity, r.state, r.persistentState);
+                } else {
+                    mInstrumentation.callActivityOnCreate(activity, r.state);
+                }
+                ……
+            }
+            ……
+        return activity;
+    }
+```
+performLaunchActivity中主要是创建了Activity对象，并且调用了onCreate方法。
+onCreate流程中的setContentView只是解析了xml，初始化了DecorView，创建了各个控件的对象；即将xml中的 转化为一个TextView对象。并没有启动View的绘制流程。
+上面走完了onCreate，接下来看onResume生命周期，同样是在ActivityThread中的performResumeActivity
+```java
+   @Override
+    public void handleResumeActivity(IBinder token, boolean finalStateRequest, boolean isForward,
+            String reason) {
+        ……
+        // 【关键点1】performResumeActivity 中会调用activity的onResume方法
+        final ActivityClientRecord r = performResumeActivity(token, finalStateRequest, reason);
+        ……
+          
+        final Activity a = r.activity;
+ 
+ 
+        ……
+          
+        if (r.window == null && !a.mFinished && willBeVisible) {
+            r.window = r.activity.getWindow();
+            View decor = r.window.getDecorView();
+            decor.setVisibility(View.INVISIBLE); // 设置不可见
+            ViewManager wm = a.getWindowManager();
+            WindowManager.LayoutParams l = r.window.getAttributes();
+            a.mDecor = decor;
+            ……
+              
+            if (a.mVisibleFromClient) {
+                if (!a.mWindowAdded) {
+                    a.mWindowAdded = true;
+                  // 【关键点2】在这里，开始做View的add操作
+                    wm.addView(decor, l); 
+                } else {
+                    ……
+                    a.onWindowAttributesChanged(l);
+                }
+            }
+ 
+ 
+            
+        } else if (!willBeVisible) {
+           ……
+        }
+       ……
+    }
+```   
+handleResumeActivity中两个关键点
+调用performResumeActivity, 该方法中r.activity.performResume(r.startsNotResumed, reason);会调用Activity的onResume方法。
+执行完Activity的onResume后调用了wm.addView(decor, l);，到这里，开始将此前创建的DecorView添加到视图中，也就是在这之后才开始布局的绘制流程
+   
+#### 为什么View.post为什么可以获取View宽高？
+* View.post的实现
+```java
+   public boolean post(Runnable action) {
+        final AttachInfo attachInfo = mAttachInfo;
+        // 添加到AttachInfo的Handler消息队列中
+        if (attachInfo != null) {
+            return attachInfo.mHandler.post(action);
+        }
+ 
+ 
+        // 加入到这个View的消息队列中
+        getRunQueue().post(action);
+        return true;
+    }
+   
+   private HandlerActionQueue getRunQueue() {
+        if (mRunQueue == null) {
+            mRunQueue = new HandlerActionQueue();
+        }
+        return mRunQueue;
+    }
+```
+post方法中，首先判断attachInfo成员变量是否为空，如果不为空，则直接加入到对应的Handler消息队列中。否则走getRunQueue().post(action);
+从Attach字面意思来理解，其实就可以知道，当View执行attach时，才会拿到mAttachInfo, 因此我们在onResume或者onCreate中调用view.post()，其实走的是getRunQueue().post(action)。
+   
+* mAttachInfo在什么时机才会赋值。
+  两部分：一个是ViewRootImpl第一次performTraversals的时候会分发，第二个是ViewGroup.addView的时候会把自己的attachInfo传递给子view
+```java
+   View.java
+   void dispatchAttachedToWindow(AttachInfo info, int visibility) {
+     mAttachInfo = info;
+     ……
+     // Transfer all pending runnables.
+     if (mRunQueue != null) {
+         mRunQueue.executeActions(info.mHandler);
+         mRunQueue = null;
+     }
+   }
+ 
+   
+   mRunQueue.executeActions(info.mHandler):
+   public void executeActions(Handler handler) {
+    synchronized (this) {
+        final HandlerAction[] actions = mActions;
+        for (int i = 0, count = mCount; i < count; i++) {
+            final HandlerAction handlerAction = actions[i];
+            handler.postDelayed(handlerAction.action, handlerAction.delay);
+        }
+ 
+        mActions = null;
+        mCount = 0;
+    }
+}
+```
+ViewRootImpl中直接定位到performTraversals方法中
+```java
+   private void performTraversals() {
+      ……
+      
+      if(mFirst) {                                          
+         // 【关键点1】分发mAttachInfo
+         host.dispatchAttachedToWindow(mAttachInfo, 0);
+      }
+      ……
+        
+      //【关键点2】开始测量
+      performMeasure(childWidthMeasureSpec, childHeightMeasureSpec);
+      ……
+      //【关键点3】开始布局
+      performLayout(lp, mWidth, mHeight);
+      ……
+      // 【关键点4】开始绘制
+      performDraw();
+      ……
+    }
+```
+                                                  
+ViewGroup添加子view分发attachInfo
+<img width="1075" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/4e9103d8-ac92-452c-960e-2d6fccaa9c94">
+<img width="1132" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/ffcd83d4-b3a7-4731-a681-42aa170c74d5">
+   
+   
 ## WindowManager
 
 * (Window, WindowManager、WindowManagerGlobal、WindowManagerService之间的关系)[https://juejin.cn/post/6844903893634138120]
