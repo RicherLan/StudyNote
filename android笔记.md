@@ -1980,8 +1980,6 @@ fun garyView(view: View) {
 
 
 
-
-
 ## Android startup.Initializer :
 
 
@@ -2006,6 +2004,26 @@ fun garyView(view: View) {
 4. TLV编码，去除没有的符号，使数据更加紧凑
 
 
+## SparseArray基于二分查找
+#### 与HashMap的对比
+* 查找速度
+HashMap基于hash查找，时间复杂度是O(1)
+SparseArray基于二分查找，时间复杂度是O(logn)
+数据量大的时候，SparseArray性能会急剧恶化；数据量小，两者应该区别不大（- - 不是很严谨，但是从时间复杂度来说是体现很明显的）
+
+* 插入速度
+对于大量数据来说，由于SparseArray二分查找会带来较大的性能开销，而且可能由于数组长度限制，会导致gc()的压缩调用，以及导致大数组的复制
+插入速度还是HashMap略胜一筹
+   
+* 删除速度
+还是由于SparseArray二分查找（数据量较大情况），HashMap略胜一筹
+   
+* 内存开销
+HashMap由于自动装箱以及HashEntry额外占用内存，所以HashMap内存占用较大
+SparseArray基于数组，不需要自动装箱，内存占用较小
+
+一句话概括：SparseArray并不是完全优于HashMap，要根据实际情况具体分析
+   
 
 LeakCanary库的代码看下
 livedata mvvm
