@@ -1,4 +1,41 @@
+## 线程池
+#### 线程池的状态，6种
+RUNNING：运行状态，线程池创建好之后就会进入此状态，如果不手动调用关闭方法，那么线程池在整个程序运行期间都是此状态。
+SHUTDOWN：关闭状态，不再接受新任务提交，但是会将已保存在任务队列中的任务处理完。
+STOP：停止状态，不再接受新任务提交，并且会中断当前正在执行的任务、放弃任务队列中已有的任务。
+TIDYING：整理状态，所有的任务都执行完毕后（也包括任务队列中的任务执行完），当前线程池中的活动线程数降为 0 时的状态。到此状态之后，会调用线程池的 terminated() 方法。
+TERMINATED：销毁状态，当执行完线程池的 terminated() 方法之后就会变为此状
+```java
+public class ThreadPoolExecutor extends AbstractExecutorService {
+     // runState is stored in the high-order bits
+    private static final int RUNNING    = -1 << COUNT_BITS;
+    private static final int SHUTDOWN   =  0 << COUNT_BITS;
+    private static final int STOP       =  1 << COUNT_BITS;
+    private static final int TIDYING    =  2 << COUNT_BITS;
+    private static final int TERMINATED =  3 << COUNT_BITS;
+}
+```
+* 线程池状态转移
+线程池的状态转移有两条路径：
+当调用 shutdown() 方法时，线程池的状态会从 RUNNING 到 SHUTDOWN，再到 TIDYING，最后到 TERMENATED 销毁状态。
+当调用 shutdownNow() 方法时，线程池的状态会从 RUNNING 到 STOP，再到 TIDYING，最后到 TERMENATED 销毁状态。
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/3293eb83-5d52-45ec-bb8e-b04135559f41)
+
+
+
 ## 线程、锁：
+
+#### 线程状态
+* java中线程的状态分为6种。
+1. 初始(NEW)：新创建了一个线程对象，但还没有调用start()方法。
+2. 运行(RUNNABLE)：Java线程中将就绪（ready）和运行中（running）两种状态笼统的称为“运行”。线程对象创建后，其他线程(比如main线程）调用了该对象的start()方法。该状态的线程位于可运行线程池中，等待被线程调度选中，获取CPU的使用权，此时处于就绪状态（ready）。就绪状态的线程在获得CPU时间片后变为运行中状态（running）。
+3. 阻塞(BLOCKED)：表示线程阻塞于锁。
+4. 等待(WAITING)：进入该状态的线程需要等待其他线程做出一些特定动作（通知或中断）。
+5. 超时等待(TIMED_WAITING)：该状态不同于WAITING，它可以在指定的时间后自行返回。
+6. 终止(TERMINATED)：表示该线程已经执行完毕。
+![image](https://github.com/BeggarLan/StudyNote/assets/49143666/64808e68-a0cc-476a-b1c0-b26ed5419082)
+
+
 #### suspend和stop弃用原因：
 1.suspend()，在调用该方法暂停线程的时候，线程由running状态变成blocked，需要等待resume方法将其重新变成runnable。
 而线程由running状态变成blocked时，只释放了CPU资源，没有释放锁资源，可能出现死锁。
