@@ -1069,6 +1069,38 @@ FragmentStatePagerAdapter中destroyItem()方法会执行FragmentTransaction.remo
 
    
 ## 获得view的宽高   
+   
+#### 如何在onCreate中拿到View的宽度和高度？
+1. View.post(runnable)
+```java
+view.post(new Runnable() {
+            @Override
+            public void run() {
+                int width = view.getWidth();
+                int measuredWidth = view.getMeasuredWidth();
+                Log.i(TAG, "width: " + width);
+                Log.i(TAG, "measuredWidth: " + measuredWidth);
+            }
+        });
+```
+利用Handler通信机制，发送一个Runnable到MessageQueue中，当View布局处理完成时，自动发送消息，通知UI进程。借此机制，巧妙获取View的高宽属性，代码简洁，相比ViewTreeObserver监听处理，还不需要手动移除观察者监听事件。
+
+2. ViewTreeObserver.addOnGlobalLayoutListener()
+监听View的onLayout()绘制过程，一旦layout触发变化，立即回调onLayoutChange方法。
+注意，使用完也要主要调用removeOnGlobalListener()方法移除监听事件。避免后续每一次发生全局View变化均触发该事件，影响性能。
+```java
+ViewTreeObserver vto = view.getViewTreeObserver();
+        vto.addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                view.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                Log.i(TAG, "width: " + view.getWidth());
+                Log.i(TAG, "height: " + view.getHeight());
+            }
+        }); 
+```
+3. 调用view.measure(xx, xx);
+   
 #### 为什么onResume方法中不可以获取View宽高
 首先我们清楚，要拿到View的宽高，那么View的绘制流程（measure—layout—draw）至少要完成measure，【记住这一点】。
 还要弄清楚Activity的生命周期，关于Activity的启动流程，后面单独写一篇，本文会带一部分。
@@ -1415,8 +1447,19 @@ ViewRootImpl.scheduleTraversals()： https://cloud.tencent.com/developer/article
                                 --> draw()
 ```
 
+## ViewRootImpl#performTraversals   
+真正的流程应该分为以下五个工作阶段：
+1. 预测量阶段：这是进入performTraversals()方法后的第一个阶段，它会对View树进行第一次测量。在此阶段中将会计算出View树为显示其内容所需的尺寸，即期望的窗口尺寸。（调用measureHierarchy()）
+2. 布局窗口阶段：根据预测量的结果，通过IWindowSession.relayout()方法向WMS请求调整窗口的尺寸等属性，这将引发WMS对窗口进行重新布局，并将布局结果返回给ViewRootImpl。（调用relayoutWindow()）
+3. 最终测量阶段：预测量的结果是View树所期望的窗口尺寸。然而由于在WMS中影响窗口布局的因素很多，WMS不一定会将窗口准确地布局为View树所要求的尺寸，而迫于WMS作为系统服务的强势地位，View树不得不接受WMS的布局结果。因此在这一阶段，performTraversals()将以窗口的实际尺寸对View树进行最终测量。（调用performMeasure()）
+4. 布局View树阶段：完成最终测量之后便可以对View树进行布局了。（调用performLayout()）
+5. 绘制阶段：这是performTraversals()的最终阶段。确定了控件的位置与尺寸后，便可以对View树进行绘制了。（调用performDraw()）
 
+   
 ## View三大流程
+   
+#### ViewRootImpl#measureHierarchy预测量
+   
 #### View measure
 1. MeasureSpec.UNSPECIFIED用在啥场景：
     MeasureSpec.UNSPECIFIED 表示父 View 对子 View 的大小没有任何限制，子 View 可以任意取大小。在这种情况下，子 View 的宽度和高度可以是任意值（可以是 0，也可以是非常大或非常小），开发者可以根据需要自由地计算自己的大小。
@@ -1441,7 +1484,19 @@ getMeasureWidth() : 在measure()过程结束后就能获取，通过setMeasuredD
 getWidth(): 在Layout()过程结束后才能获取，通过视图右边的坐标-左边的坐标得到：mRight-mLeft
 
 
-* requestLayout() 和 invalidate区别以及原因：
+#### requestLayout() 和 invalidate区别以及原因：
+* requestLayout：
+requestLayout会直接递归调用父窗口的requestLayout，直到ViewRootImpl,然后触发peformTraversals，由于mLayoutRequested为true，会导致onMeasure和onLayout被调用。不一定会触发OnDraw。requestLayout触发onDraw可能是因为在在layout过程中发现l,t,r,b和以前不一样，那就会触发一次invalidate，所以触发了onDraw，也可能是因为别的原因导致mDirty非空（比如在跑动画）
+
+* invalidate：
+view的invalidate不会导致ViewRootImpl的invalidate被调用，而是递归调用父view的invalidateChildInParent，直到ViewRootImpl的invalidateChildInParent，然后触发peformTraversals，会导致当前view被重绘,由于mLayoutRequested为false，不会导致onMeasure和onLayout被调用，而OnDraw会被调用
+
+* postInvalidate：
+postInvalidate是在非UI线程中调用，invalidate则是在UI线程中调用。
+
+一般来说，只要刷新的时候就调用invalidate，需要重新measure就调用requestLayout，后面再跟个invalidate（为了保证重绘），这是我个人的理解
+
+   
    
 #### view draw
 ViewGroup为什么默认不会执行onDraw()? 
