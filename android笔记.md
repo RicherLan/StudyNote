@@ -1450,7 +1450,9 @@ ViewRootImpl.scheduleTraversals()： https://cloud.tencent.com/developer/article
 ## ViewRootImpl#performTraversals   
 真正的流程应该分为以下五个工作阶段：
 1. 预测量阶段：这是进入performTraversals()方法后的第一个阶段，它会对View树进行第一次测量。在此阶段中将会计算出View树为显示其内容所需的尺寸，即期望的窗口尺寸。（调用measureHierarchy()）
-2. 布局窗口阶段：根据预测量的结果，通过IWindowSession.relayout()方法向WMS请求调整窗口的尺寸等属性，这将引发WMS对窗口进行重新布局，并将布局结果返回给ViewRootImpl。（调用relayoutWindow()）
+2. 布局窗口阶段：根据预测量的结果，通过IWindowSession.relayout(xxx, mSurfaceControl, xxx)方法向WMS请求调整窗口的尺寸等属性，这将引发WMS对窗口进行重新布局，并将布局结果返回给ViewRootImpl。（调用relayoutWindow()）
+   <img width="1191" alt="image" src="https://github.com/BeggarLan/StudyNote/assets/49143666/88195a66-3d88-4d7c-a08f-5351373cebe7">
+
 3. 最终测量阶段：预测量的结果是View树所期望的窗口尺寸。然而由于在WMS中影响窗口布局的因素很多，WMS不一定会将窗口准确地布局为View树所要求的尺寸，而迫于WMS作为系统服务的强势地位，View树不得不接受WMS的布局结果。因此在这一阶段，performTraversals()将以窗口的实际尺寸对View树进行最终测量。（调用performMeasure()）
 4. 布局View树阶段：完成最终测量之后便可以对View树进行布局了。（调用performLayout()）
 5. 绘制阶段：这是performTraversals()的最终阶段。确定了控件的位置与尺寸后，便可以对View树进行绘制了。（调用performDraw()）
